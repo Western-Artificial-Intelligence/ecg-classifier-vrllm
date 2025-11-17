@@ -122,10 +122,11 @@ def create_model(input_shape):
     transformer_output = transformer_encoder_block(cnn_output, num_heads=2, key_dim=32, dropout_rate=0.5)
 
     # LSTM
-    lstm_output = LSTM(units=128, dropout=0.5, activation='tanh', return_sequences=True)(transformer_output)
+    # lstm_output = LSTM(units=128, dropout=0.5, activation='tanh', return_sequences=True)(transformer_output)
 
     # Fully Connected Layers
-    fc_output = Flatten()(lstm_output)
+    # fc_output = Flatten()(lstm_output)
+    fc_output = Flatten()(transformer_output)
     fc_output = Dense(128, activation='relu')(fc_output)
     outputs = Dense(2, activation="softmax")(fc_output)
 
