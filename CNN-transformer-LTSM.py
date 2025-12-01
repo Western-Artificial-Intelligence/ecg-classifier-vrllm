@@ -210,7 +210,7 @@ if __name__ == "__main__":
     model = create_model(input_shape=x_train.shape[1:])
     model.summary()
 
-    plot_model(model, "model.png", show_shapes=True)
+    # plot_model(model, "model.png", show_shapes=True)
 
     model.compile(optimizer="adam", loss="binary_crossentropy", metrics=['accuracy'])
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         csv_logger,
     ]
 
-    history = model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test), callbacks=callbacks_list)
+    history = model.fit(x_train, y_train, batch_size=128, epochs=20, validation_data=(x_test, y_test), callbacks=callbacks_list)
     model.save(os.path.join("model.final.h5"))
 
     plot(history.history)
