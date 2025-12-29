@@ -122,10 +122,11 @@ def create_model(input_shape):
     transformer_output = transformer_encoder_block(cnn_output, num_heads=2, key_dim=32, dropout_rate=0.5)
 
     # LSTM
-    lstm_output = LSTM(units=128, dropout=0.5, activation='tanh', return_sequences=True)(transformer_output)
+    # lstm_output = LSTM(units=128, dropout=0.5, activation='tanh', return_sequences=True)(transformer_output)
 
     # Fully Connected Layers
-    fc_output = Flatten()(lstm_output)
+    # fc_output = Flatten()(lstm_output)
+    fc_output = Flatten()(transformer_output)
     fc_output = Dense(128, activation='relu')(fc_output)
     outputs = Dense(2, activation="softmax")(fc_output)
 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     model = create_model(input_shape=x_train.shape[1:])
     model.summary()
 
-    plot_model(model, "model.png", show_shapes=True)
+    # plot_model(model, "model.png", show_shapes=True)
 
     model.compile(optimizer="adam", loss="binary_crossentropy", metrics=['accuracy'])
 
@@ -226,7 +227,7 @@ if __name__ == "__main__":
         csv_logger,
     ]
 
-    history = model.fit(x_train, y_train, batch_size=128, epochs=100, validation_data=(x_test, y_test), callbacks=callbacks_list)
+    history = model.fit(x_train, y_train, batch_size=128, epochs=20, validation_data=(x_test, y_test), callbacks=callbacks_list)
     model.save(os.path.join("model.final.h5"))
 
     plot(history.history)
