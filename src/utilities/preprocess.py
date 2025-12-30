@@ -1,4 +1,3 @@
-
 """
 This utility module provides a function to preprocess a single ECG record
 into a format suitable for model inference. It mirrors the preprocessing
@@ -11,7 +10,7 @@ Functions:
 
 import os
 
-# Scientific computing and signal processing libraries
+# Scientific computing and data analysis libraries
 import numpy as np
 import wfdb
 import biosppy.signals.tools as st
@@ -198,4 +197,3 @@ def preprocess(record_path_or_name: str) -> dict:
         "minutes": minutes,
         "skipped": skipped,
     }
-
