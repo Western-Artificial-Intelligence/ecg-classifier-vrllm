@@ -81,7 +81,7 @@ def evaluate_model():
     # Load the best trained model.
     # The model is expected to be saved in the Keras native format (.keras)
     # in the directory specified by config.MODELS_DIR.
-    model_path = os.path.join(config.MODELS_DIR, 'model.keras') # Use 'model.keras' as it's the checkpointed best model
+    model_path = os.path.join(config.MODELS_DIR, 'model.final.keras')
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}. Please ensure training was successful.")
         return
