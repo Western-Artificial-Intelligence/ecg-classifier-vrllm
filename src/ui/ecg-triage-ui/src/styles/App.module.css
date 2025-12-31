@@ -1,0 +1,123 @@
+.appContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+  color: #333;
+}
+
+.mainContent {
+  display: flex;
+  flex: 1; /* Takes up remaining vertical space */
+  padding: 10px;
+  gap: 10px; /* Space between the two main columns */
+}
+
+.ecgDisplayArea {
+  flex: 2; /* Takes up 2/3 of the width */
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ecgChartWrapper {
+  flex: 1; /* Allows the chart to take up available space */
+  position: relative; /* For absolute positioning of chart canvas if needed */
+  min-height: 200px; /* Ensure chart has some height */
+}
+
+.ecgChartPlaceholder {
+  flex: 1; /* Takes up available space in the ecgDisplayArea */
+  background-color: #e8e8e8;
+  border: 1px dashed #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  min-height: 200px; /* Ensure it has some height */
+}
+
+.ecgTimelineControl {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #e0e0e0;
+  border-radius: 5px;
+  text-align: center;
+  font-size: 0.9em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.timelineSlider {
+  width: 90%; /* Make slider wide */
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  height: 8px;
+  background: #d3d3d3;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+  border-radius: 4px;
+}
+
+.timelineSlider:hover {
+  opacity: 1;
+}
+
+.timelineSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #4CAF50;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.timelineSlider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #4CAF50;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+
+.infoResultsArea {
+  flex: 1; /* Takes up 1/3 of the width */
+  display: flex;
+  flex-direction: column;
+  background-color: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.patientControls, .mlResults {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.mlResults {
+  background-color: #ffe0b2;
+  border: 1px solid #ffcc80;
+}
+
+.bottomPanel {
+  background-color: #d0d0d0;
+  padding: 10px;
+  text-align: center;
+  border-top: 1px solid #bbb;
+}
