@@ -180,20 +180,97 @@ def preprocess(record_path_or_name: str) -> dict:
     tm_fixed_grid = np.arange(0, (config.BEFORE + 1 + config.AFTER) * 60, step=1.0 / config.IR)
 
     x_list = []
-    for (rri_tm, rri_signal), (ampl_tm, ampl_signal) in X:
-        # Normalize and interpolate both RRI and amplitude signals.
+    raw_segments_list = [] # Store raw signal segments
+    
+    # We iterate again through the original processing loop logic but now we need 
+    # to match the filtered X list. A cleaner way is to store the raw segment in X originally.
+    # Let's refactor the loop slightly to store raw_segment in X.
+    
+    # Re-initialize lists
+    X_features = [] 
+    X_raw = []
+    minutes = []
+    skipped = []
+
+    for j in range(len(labels)):
+        if j < config.BEFORE or \
+           (j + 1 + config.AFTER) > len(signals) / float(config.SAMPLE):
+            skipped.append(j)
+            continue
+
+        start_sample = int((j - config.BEFORE) * config.SAMPLE)
+        end_sample = int((j + 1 + config.AFTER) * config.SAMPLE)
+        signal_segment = signals[start_sample:end_sample]
+
+        # Filter
+        signal_filt, _, _ = st.filter_signal(
+            signal_segment,
+            ftype="FIR",
+            band="bandpass",
+            order=int(0.3 * config.FS),
+            frequency=[3, 45],
+            sampling_rate=config.FS,
+        )
+
+        # R-peaks
+        rpeaks, = hamilton_segmenter(signal_filt, sampling_rate=config.FS)
+        rpeaks, = correct_rpeaks(signal_filt, rpeaks=rpeaks, sampling_rate=config.FS, tol=0.1)
+
+        if len(rpeaks) == 0:
+            skipped.append(j)
+            continue
+
+        beats_per_window = len(rpeaks) / ((1 + config.AFTER + config.BEFORE))
+        if beats_per_window < 40 or beats_per_window > 200:
+            skipped.append(j)
+            continue
+
+        # Features
+        rri_tm = rpeaks[1:] / float(config.FS)
+        rri_signal = np.diff(rpeaks) / float(config.FS)
+        
+        if rri_signal.size == 0:
+            skipped.append(j)
+            continue
+            
+        rri_signal = medfilt(rri_signal, kernel_size=3)
+
+        ampl_tm = rpeaks / float(config.FS)
+        rpeaks_clip = np.clip(rpeaks, 0, len(signal_filt) - 1)
+        ampl_signal = signal_filt[rpeaks_clip]
+
+        hr = 60.0 / np.clip(rri_signal, 1e-6, None)
+        if not np.all(np.logical_and(hr >= config.HR_MIN, hr <= config.HR_MAX)):
+            skipped.append(j)
+            continue
+
+        X_features.append(((rri_tm, rri_signal), (ampl_tm, ampl_signal)))
+        X_raw.append(signal_segment) # Store the raw segment
+        minutes.append(j)
+
+    if not X_features:
+        seq_len = int((config.BEFORE + 1 + config.AFTER) * 60 * config.IR)
+        tensors = np.empty((0, seq_len, 2), dtype=np.float32)
+        return {
+            "record": base_record_name,
+            "tensors": tensors,
+            "raw_segments": [],
+            "minutes": [],
+            "skipped": skipped,
+        }
+
+    x_list = []
+    for (rri_tm, rri_signal), (ampl_tm, ampl_signal) in X_features:
         rri_interp = splev(tm_fixed_grid, splrep(rri_tm, _normalize(rri_signal), k=3), ext=1)
         ampl_interp = splev(tm_fixed_grid, splrep(ampl_tm, _normalize(ampl_signal), k=3), ext=1)
         x_list.append([rri_interp, ampl_interp])
 
-    # Convert the list of processed features into a NumPy array.
-    # Transpose to get the shape (num_segments, sequence_length, num_features)
-    # as expected by the Keras model.
     x_arr = np.array(x_list, dtype="float32").transpose((0, 2, 1))
 
     return {
         "record": base_record_name,
         "tensors": x_arr,
+        "raw_segments": X_raw, # Return list of raw numpy arrays
         "minutes": minutes,
         "skipped": skipped,
     }

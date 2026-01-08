@@ -252,6 +252,7 @@ def generate_gradcam_for_record(record_name: str, visualize_count: int = 3):
     out = preprocess(full_record_path)
     tensors = out["tensors"]
     minutes = out["minutes"]
+    raw_segments = out["raw_segments"] # New list of raw segments
 
     if tensors.shape[0] == 0:
         print(f"No valid signal segments found for record {record_name}.")
@@ -280,12 +281,16 @@ def generate_gradcam_for_record(record_name: str, visualize_count: int = 3):
 
         input_tensor = np.expand_dims(tensors[i], axis=0) 
         
+        # Get the corresponding raw segment
+        raw_signal = raw_segments[i]
+
         try:
             # Note: The model should have a layer named 'last_conv_layer' or equivalent Conv1D
             heatmap = make_gradcam_heatmap(input_tensor, model, "last_conv_layer")
             
             save_path = os.path.join(gradcam_dir, f"{record_name}_min{minute}_{class_label}_{confidence:.2f}.png")
-            save_gradcam_visualization(input_tensor, heatmap, save_path)
+            # Pass the RAW signal to the visualization function
+            save_gradcam_visualization(raw_signal, heatmap, save_path)
             print(f"Saved visualization to: {save_path}")
         except Exception as e:
             print(f"Failed to generate Grad-CAM for Minute {minute}: {e}")

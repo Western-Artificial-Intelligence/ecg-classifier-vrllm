@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import cv2
+from src import config
 
 def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
     """
@@ -58,48 +59,86 @@ def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
     return heatmap.numpy()
 
-def save_gradcam_visualization(img_array, heatmap, save_path, alpha=0.4):
+def save_gradcam_visualization(raw_signal, heatmap, save_path, alpha=0.4):
     """
-    Overlays the Grad-CAM heatmap on the 1D signal and saves the plot.
-
+    Overlays the Grad-CAM heatmap on the RAW ECG signal (cropped to the target minute)
+    and saves the plot as a grid of 30 subplots (2 seconds each).
+    
     Args:
-        img_array: Input tensor of shape (1, seq_length, num_features).
-        heatmap: The 1D heatmap (activations).
+        raw_signal: The raw ECG signal array (1D) for the full window.
+        heatmap: The 1D heatmap (activations) derived from the processed input.
         save_path: Path to save the resulting image.
         alpha: Transparency of the heatmap overlay.
     """
-    # img_array shape is (1, 900, 2) -> we take the first feature (RRI) for plotting usually
-    # or plot both. Let's assume RRI is index 0.
-    signal = img_array[0, :, 0] # RRI
-    
-    # Resize heatmap to match signal length
-    # We use cv2.resize for convenience, treating it as a 1D image (height 1)
-    # heatmap is currently shape (14,) or similar.
-    # We need to resize it to (900,)
+    # 1. Resize heatmap to match the FULL raw signal length first
     heatmap = np.uint8(255 * heatmap)
-    
-    # Expand dims to use cv2.resize which expects at least 2D
-    heatmap = np.expand_dims(heatmap, axis=0) # (1, 14)
-    heatmap = cv2.resize(heatmap, (signal.shape[0], 1)) # (900, 1)
-    heatmap = np.squeeze(heatmap) # (900,)
+    heatmap = np.expand_dims(heatmap, axis=0)
+    heatmap = cv2.resize(heatmap, (raw_signal.shape[0], 1))
+    heatmap = np.squeeze(heatmap)
 
-    # Create figure
-    plt.figure(figsize=(10, 4))
+    # 2. Crop to the target minute (the central minute)
+    # The window structure is determined by config.BEFORE and config.AFTER.
+    fs = config.FS
+    start_sec = config.BEFORE * 60
+    end_sec = (config.BEFORE + 1) * 60
     
-    # Plot original signal
-    x = np.arange(len(signal))
-    plt.plot(x, signal, label='ECG Signal (RRI)', color='black', alpha=0.8, linewidth=1)
+    start_idx = int(start_sec * fs)
+    end_idx = int(end_sec * fs)
+    
+    # Safety check
+    start_idx = max(0, start_idx)
+    end_idx = min(len(raw_signal), end_idx)
+    
+    signal_minute = raw_signal[start_idx:end_idx]
+    heatmap_minute = heatmap[start_idx:end_idx]
+    
+    # 3. Create Grid Plot (30 subplots: 6 rows x 5 columns)
+    # Each subplot covers 60s / 30 = 2 seconds.
+    rows = 6
+    cols = 5
+    num_plots = rows * cols
+    seconds_per_plot = 2.0
+    samples_per_plot = int(seconds_per_plot * fs)
+    
+    fig, axes = plt.subplots(rows, cols, figsize=(20, 15), sharey=True)
+    axes = axes.flatten() # Flatten to 1D array for easy iteration
+    
+    # Global title
+    fig.suptitle('Grad-CAM: Target Minute Zoomed (2s segments)', fontsize=16)
 
-    # Color mapping for heatmap
-    # We can scatter plot points colored by heatmap intensity, or use fill_between
-    # A simple way is to use a scatter plot with c=heatmap
-    plt.scatter(x, signal, c=heatmap, cmap='jet', alpha=alpha, label='Grad-CAM', s=10)
-    
-    plt.colorbar(label='Attention')
-    plt.title('Grad-CAM: Model Attention on ECG Signal')
-    plt.xlabel('Time Step')
-    plt.ylabel('Normalized Value')
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(save_path)
+    for i in range(num_plots):
+        ax = axes[i]
+        
+        # Segment indices relative to the minute crop
+        seg_start = i * samples_per_plot
+        seg_end = min((i + 1) * samples_per_plot, len(signal_minute))
+        
+        if seg_start >= len(signal_minute):
+            ax.axis('off') # Hide unused subplots if any
+            continue
+            
+        segment_signal = signal_minute[seg_start:seg_end]
+        segment_heatmap = heatmap_minute[seg_start:seg_end]
+        
+        # Time axis for this segment (absolute time within the minute)
+        t_start = i * seconds_per_plot
+        t_axis = np.linspace(t_start, t_start + seconds_per_plot, len(segment_signal))
+        
+        # Plot raw signal
+        ax.plot(t_axis, segment_signal, color='black', alpha=0.8, linewidth=1)
+        
+        # Scatter heatmap
+        # Increased dot size slightly for visibility on smaller plots
+        ax.scatter(t_axis, segment_signal, c=segment_heatmap, cmap='jet', alpha=alpha, s=20)
+        
+        # Formatting
+        ax.set_title(f"{t_start:.0f}s - {t_start+seconds_per_plot:.0f}s", fontsize=10)
+        ax.grid(True, linestyle='--', alpha=0.3)
+        
+        # Only show x labels on bottom row
+        if i >= num_plots - cols:
+            ax.set_xlabel("Time (s)", fontsize=9)
+            
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Adjust for suptitle
+    plt.savefig(save_path, dpi=150)
     plt.close()
