@@ -75,6 +75,23 @@ def main():
              "to be located in the raw data directory defined in config.RAW_DATA_DIR."
     )
 
+    # --- 'gradcam' command parser ---
+    gradcam_parser = subparsers.add_parser(
+        "gradcam",
+        help="Generate Grad-CAM visualizations for a specific ECG record."
+    )
+    gradcam_parser.add_argument(
+        "record_name",
+        type=str,
+        help="The base name of the ECG record to process."
+    )
+    gradcam_parser.add_argument(
+        "--count",
+        type=int,
+        default=3,
+        help="Number of top confident segments to visualize."
+    )
+
     # Parse the command-line arguments provided by the user.
     args = parser.parse_args()
 
@@ -110,6 +127,10 @@ def main():
         # Invokes the prediction function for a single record from the `evaluate` module.
         evaluate.predict_on_record(args.record_name)
         print(f"--- Prediction Complete for Record: {args.record_name} ---")
+
+    elif args.command == "gradcam":
+        # Invokes the Grad-CAM generation function from the `evaluate` module.
+        evaluate.generate_gradcam_for_record(args.record_name, visualize_count=args.count)
 
     else:
         # If no command or an unknown command is provided, print the help message.

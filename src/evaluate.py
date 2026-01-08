@@ -25,6 +25,7 @@ from sklearn.metrics import confusion_matrix, f1_score, roc_curve, auc
 from src import config # For accessing configuration parameters and file paths
 from src.utilities.preprocess import preprocess # For preprocessing single ECG records for prediction
 from src.data_loader import load_data # For loading the main processed dataset
+from src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization # Import Grad-CAM utilities
 
 
 def plot_training_history(history: tf.keras.callbacks.History):
@@ -227,6 +228,72 @@ def predict_on_record(record_name: str):
     print(f"--- Prediction Complete for Record: {record_name} ---")
 
 
+def generate_gradcam_for_record(record_name: str, visualize_count: int = 3):
+    """
+    Generates Grad-CAM visualizations for the top confident predictions of a record.
+
+    Args:
+        record_name (str): The base name of the record to process.
+        visualize_count (int): Number of top confident segments to visualize.
+    """
+    print(f"\n--- Starting Grad-CAM Generation for Record: {record_name} ---")
+
+    # Load Model
+    model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+    if not os.path.exists(model_path):
+        print(f"Error: Model not found at {model_path}.")
+        return
+
+    model = tf.keras.models.load_model(model_path)
+    print(f"Model loaded from: {model_path}")
+
+    # Preprocess
+    full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
+    out = preprocess(full_record_path)
+    tensors = out["tensors"]
+    minutes = out["minutes"]
+
+    if tensors.shape[0] == 0:
+        print(f"No valid signal segments found for record {record_name}.")
+        return
+
+    # Predict
+    preds = model.predict(tensors)
+
+    # --- Grad-CAM Visualization ---
+    print("\n--- Generating Grad-CAM Visualizations ---")
+    gradcam_dir = os.path.join(config.RESULTS_DIR, "gradcam")
+    os.makedirs(gradcam_dir, exist_ok=True)
+
+    # Sort by confidence
+    max_probs = np.max(preds, axis=1)
+    top_indices = np.argsort(max_probs)[-visualize_count:][::-1]
+
+    for i in top_indices:
+        minute = minutes[i]
+        prediction_prob = preds[i]
+        predicted_class = np.argmax(prediction_prob)
+        class_label = "Apnea" if predicted_class == 1 else "Non-Apnea"
+        confidence = prediction_prob[predicted_class]
+
+        print(f"Generating Grad-CAM for Minute {minute} (Pred: {class_label}, Conf: {confidence:.4f})...")
+
+        input_tensor = np.expand_dims(tensors[i], axis=0) 
+        
+        try:
+            # Note: The model should have a layer named 'last_conv_layer' or equivalent Conv1D
+            heatmap = make_gradcam_heatmap(input_tensor, model, "last_conv_layer")
+            
+            save_path = os.path.join(gradcam_dir, f"{record_name}_min{minute}_{class_label}_{confidence:.2f}.png")
+            save_gradcam_visualization(input_tensor, heatmap, save_path)
+            print(f"Saved visualization to: {save_path}")
+        except Exception as e:
+            print(f"Failed to generate Grad-CAM for Minute {minute}: {e}")
+
+    print(f"--- Grad-CAM Generation Complete for Record: {record_name} ---")
+
+
+
 if __name__ == '__main__':
     # This block allows the script to be run directly for quick testing.
     # In a typical workflow, these functions would be invoked via src/main.py.
@@ -236,3 +303,4 @@ if __name__ == '__main__':
 
     # Example of running prediction on a single record
     predict_on_record('a01')
+    
