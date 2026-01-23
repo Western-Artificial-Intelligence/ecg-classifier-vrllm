@@ -166,7 +166,7 @@ def create_model(input_shape: tuple, num_heads: int = 2, key_dim: int = 32, drop
     x = MaxPooling1D(pool_size=4)(x) # Reduces sequence length, summarizes features
     x = Conv1D(128, kernel_size=7, strides=1, padding="same", activation="relu", kernel_initializer="he_normal")(x)
     x = MaxPooling1D(pool_size=4)(x)
-    x = Conv1D(128, kernel_size=7, strides=1, padding="same", activation="relu", kernel_initializer="he_normal")(x)
+    x = Conv1D(128, kernel_size=7, strides=1, padding="same", activation="relu", kernel_initializer="he_normal", name="last_conv_layer")(x)
     x = MaxPooling1D(pool_size=4)(x)
     cnn_output = Dropout(0.5)(x) # Dropout for regularization after CNN features are extracted
 
