@@ -6,23 +6,241 @@
   color: #333;
 }
 
-.topSection {
+.mainLayout {
   display: flex;
-  flex: 1; /* Takes up remaining vertical space minus bottom prompt */
+  flex: 1;
   padding: 10px;
-  gap: 10px; /* Space between left and right columns */
+  gap: 10px;
   overflow: hidden;
 }
 
-.leftColumn {
-  flex: 2; /* Takes up 2/3 of the width */
+/* File Selection Sidebar */
+.fileSelectionArea {
+  width: 250px;
+  min-width: 250px;
+  max-width: 250px;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.backButton {
+  width: 100%;
+  padding: 10px;
+  background-color: #e0e0e0;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 15px;
+  transition: all 0.3s;
+  text-align: left;
+}
+
+.backButton:hover {
+  background-color: #d0d0d0;
+  border-color: #999;
+}
+
+.fileSelectionArea h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.addFileButton {
+  width: 100%;
+  padding: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 15px;
+  transition: background-color 0.3s;
+}
+
+.addFileButton:hover {
+  background-color: #45a049;
+}
+
+.fileDropZone {
+  border: 2px dashed #999;
+  border-radius: 8px;
+  padding: 30px 10px;
+  text-align: center;
+  background-color: #fafafa;
+  margin-bottom: 15px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.fileDropZone:hover {
+  border-color: #4CAF50;
+  background-color: #f0f8f0;
+}
+
+.dropZoneText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: #666;
+}
+
+.dropZoneText span {
+  font-size: 2em;
+}
+
+.dropZoneText p {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.fileTree {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.folderItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.folderItem:hover {
+  background-color: #e8e8e8;
+}
+
+.folderIcon {
+  font-size: 1.2em;
+}
+
+.folderName {
+  font-weight: 500;
+  color: #333;
+  flex: 1;
+}
+
+.folderToggle {
+  font-size: 0.8em;
+  color: #666;
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.fileList {
+  margin-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: background-color 0.2s;
+}
+
+.fileItem:hover {
+  background-color: #e8e8e8;
+}
+
+.fileItem.activeFile {
+  background-color: #c8e6c9;
+  font-weight: 500;
+}
+
+.fileIcon {
+  font-size: 1em;
+}
+
+.fileName {
+  color: #555;
+  font-size: 0.9em;
+  flex: 1;
+}
+
+.fileItem.activeFile .fileName {
+  color: #2e7d32;
+}
+
+.fileDate {
+  color: #999;
+  font-size: 0.75em;
+  margin-left: auto;
+}
+
+/* Toggle Panels Button */
+.togglePanelsButton {
+  width: 50px;
+  height: 50px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transition: all 0.3s;
+  z-index: 10;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.togglePanelsButton:hover {
+  background-color: #45a049;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+  transform: scale(1.1);
+}
+
+.togglePanelsButton:active {
+  transform: scale(0.95);
+}
+
+.togglePanelsButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Middle Column */
+.middleColumn {
+  flex: 2;
+  min-width: 0; /* Critical for flex items to shrink properly */
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: flex 0.3s ease;
+  overflow: hidden;
+}
+
+.middleColumn.expanded {
+  flex: 3;
 }
 
 .ecgDisplayArea {
   flex: 1; /* Takes up most of the left column */
+  min-height: 0; /* Critical for flex items to shrink properly */
   display: flex;
   flex-direction: column;
   background-color: #f0f0f0;
@@ -30,12 +248,14 @@
   border-radius: 8px;
   padding: 15px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
 }
 
 .ecgChartWrapper {
   flex: 1; /* Allows the chart to take up available space */
+  min-height: 0; /* Critical for flex items to shrink properly */
   position: relative; /* For absolute positioning of chart canvas if needed */
-  min-height: 200px; /* Ensure chart has some height */
+  overflow: hidden;
 }
 
 .ecgChartPlaceholder {
@@ -60,6 +280,7 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0; /* Don't let this shrink */
 }
 
 .timelineSlider {
@@ -105,6 +326,7 @@
   border-radius: 8px;
   padding: 15px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  flex-shrink: 0;
 }
 
 .patientInfoBox h3 {
@@ -139,9 +361,22 @@
   margin-left: 10px;
 }
 
+/* Chat Column */
+.chatColumn {
+  flex: 1;
+  min-width: 0; /* Allow flex to work properly */
+  width: 300px; /* Fixed width instead of min-width */
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 /* Chat Window Area */
 .chatWindowArea {
-  flex: 1; /* Takes up 1/3 of the width */
+  flex: 1;
+  min-height: 0; /* Critical for flex items */
   display: flex;
   flex-direction: column;
   background-color: #f9f9f9;
@@ -191,46 +426,58 @@
   line-height: 1.5;
 }
 
-/* Bottom Prompt Area */
-.bottomPromptArea {
+/* Chat Input Area */
+.chatInputArea {
+  position: relative;
   display: flex;
-  gap: 10px;
-  padding: 15px;
-  background-color: #e8e8e8;
-  border-top: 1px solid #ccc;
-  box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
-}
-
-.promptInput {
-  flex: 1;
-  padding: 12px;
-  font-size: 1em;
+  align-items: center;
+  background-color: #fff;
   border: 1px solid #ccc;
-  border-radius: 5px;
-  outline: none;
-  transition: border-color 0.3s;
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  flex-shrink: 0; /* Don't let this shrink */
 }
 
-.promptInput:focus {
-  border-color: #4CAF50;
-}
-
-.sendButton {
-  padding: 12px 30px;
+.chatInput {
+  flex: 1;
+  padding: 12px 50px 12px 15px;
   font-size: 1em;
-  background-color: #4CAF50;
-  color: white;
   border: none;
-  border-radius: 5px;
+  outline: none;
+  background: transparent;
+}
+
+.chatInput:focus {
+  outline: none;
+}
+
+.sendArrowButton {
+  position: absolute;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+  border: none;
   cursor: pointer;
-  transition: background-color 0.3s;
-  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #4CAF50;
+  transition: all 0.3s;
 }
 
-.sendButton:hover {
-  background-color: #45a049;
+.sendArrowButton:hover {
+  background-color: rgba(76, 175, 80, 0.1);
+  transform: scale(1.1);
 }
 
-.sendButton:active {
-  background-color: #3d8b40;
+.sendArrowButton:active {
+  transform: scale(0.95);
+}
+
+.sendArrowButton svg {
+  width: 24px;
+  height: 24px;
 }
