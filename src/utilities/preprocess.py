@@ -171,6 +171,7 @@ def preprocess(record_path_or_name: str) -> dict:
         return {
             "record": base_record_name,
             "tensors": tensors,
+            "raw_segments": [],
             "minutes": [],
             "skipped": skipped,
         }

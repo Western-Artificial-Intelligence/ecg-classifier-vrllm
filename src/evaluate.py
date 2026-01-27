@@ -228,6 +228,87 @@ def predict_on_record(record_name: str):
     print(f"--- Prediction Complete for Record: {record_name} ---")
 
 
+def generate_gradcam_for_minute(record_name: str, minute: int, model=None):
+    """
+    Generate Grad-CAM for a specific minute of a record.
+    
+    Args:
+        record_name (str): The base name of the record to process (e.g., 'a01').
+        minute (int): Specific minute index to visualize.
+        model: Pre-loaded model (optional, loads if None).
+        
+    Returns:
+        dict: Dictionary containing:
+            - 'heatmap': The Grad-CAM heatmap array
+            - 'raw_signal': The raw ECG signal for that minute
+            - 'prediction': Prediction probabilities for that minute
+            - 'minute': The minute index
+            - 'predicted_class': 0 or 1 (Non-Apnea or Apnea)
+            - 'confidence': Confidence of the prediction
+    """
+    print(f"\n--- Generating Grad-CAM for Record: {record_name}, Minute: {minute} ---")
+    
+    # Load model if not provided
+    if model is None:
+        model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model not found at {model_path}")
+        model = tf.keras.models.load_model(model_path)
+        print(f"Model loaded from: {model_path}")
+    
+    # Preprocess the record
+    full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
+    out = preprocess(full_record_path)
+    
+    tensors = out["tensors"]
+    minutes = out["minutes"]
+    raw_segments = out.get("raw_segments", [])
+    
+    if tensors.shape[0] == 0:
+        raise ValueError(f"No valid signal segments found for record {record_name}")
+    
+    # Find the index of the requested minute
+    try:
+        target_idx = minutes.index(minute)
+    except ValueError:
+        raise ValueError(f"Minute {minute} not found in processed segments. Available minutes: {minutes}")
+    
+    # Make prediction for this minute
+    input_tensor = np.expand_dims(tensors[target_idx], axis=0)
+    prediction = model.predict(input_tensor)[0]
+    predicted_class = int(np.argmax(prediction))
+    confidence = float(prediction[predicted_class])
+    
+    # Generate Grad-CAM heatmap
+    try:
+        heatmap = make_gradcam_heatmap(input_tensor, model, "last_conv_layer")
+    except Exception as e:
+        # Fallback: try to find the last Conv1D layer
+        conv_layers = [layer for layer in model.layers if isinstance(layer, tf.keras.layers.Conv1D)]
+        if not conv_layers:
+            raise ValueError("No Conv1D layers found in the model for Grad-CAM")
+        last_conv_name = conv_layers[-1].name
+        print(f"Using Conv1D layer: {last_conv_name}")
+        heatmap = make_gradcam_heatmap(input_tensor, model, last_conv_name)
+    
+    # Get raw signal
+    if target_idx >= len(raw_segments):
+        raise ValueError(f"Raw signal not available for minute {minute}")
+    raw_signal = raw_segments[target_idx]
+    
+    print(f"--- Grad-CAM Generation Complete for Minute: {minute} ---")
+    
+    return {
+        "heatmap": heatmap,
+        "raw_signal": raw_signal,
+        "prediction": prediction,
+        "minute": minute,
+        "predicted_class": predicted_class,
+        "confidence": confidence,
+        "class_label": "Apnea" if predicted_class == 1 else "Non-Apnea"
+    }
+
+
 def generate_gradcam_for_record(record_name: str, visualize_count: int = 3):
     """
     Generates Grad-CAM visualizations for the top confident predictions of a record.
