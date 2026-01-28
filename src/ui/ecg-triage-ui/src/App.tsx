@@ -3,6 +3,7 @@ import styles from './styles/App.module.css';
 import EcgChart from './components/EcgChart';
 import MinimapView from './components/MinimapView';
 import SummaryChartView from './components/SummaryChartView';
+import { savePredictions, loadPredictions, saveGradCAM, loadGradCAM, loadAllGradCAMs } from './utils/storage';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -70,6 +71,10 @@ function App() {
   const [gradcamCache, setGradcamCache] = useState<Map<number, GradCAMData>>(new Map());
   const [currentZoom, setCurrentZoom] = useState<ZoomLevel>('DETAIL');
   const [viewMode, setViewMode] = useState<ViewMode>('waveform');
+  const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes'>('details');
+  const [gradcamQueue, setGradcamQueue] = useState<Set<number>>(new Set());
+  const [gradcamNotifications, setGradcamNotifications] = useState<Array<{minute: number, id: string}>>([]);
+  const [showAnalysisOverlay, setShowAnalysisOverlay] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
@@ -221,6 +226,15 @@ function App() {
   const fetchPredictions = async (filename: string) => {
     setPredicting(true);
     try {
+      // Try loading from IndexedDB first
+      const cached = await loadPredictions(filename);
+      if (cached) {
+        setPredictions(cached);
+        setPredicting(false);
+        return;
+      }
+      
+      // Fetch from API
       const recordName = filename.replace('.dat', '');
       const response = await fetch(`http://localhost:8000/api/predict/${recordName}`, {
         method: 'POST'
@@ -231,7 +245,11 @@ function App() {
       }
       
       const result = await response.json();
-      setPredictions(result.predictions || []);
+      const predictions = result.predictions || [];
+      setPredictions(predictions);
+      
+      // Save to IndexedDB
+      await savePredictions(filename, predictions);
     } catch (e: any) {
       console.error('Error fetching predictions:', e);
       setError(`Prediction error: ${e.message}`);
@@ -279,18 +297,71 @@ function App() {
     }
   };
 
-  // Handle segment click to show Grad-CAM
+  // Handle segment click to show Grad-CAM (non-blocking)
   const handleSegmentClick = async (minute: number) => {
-    setSelectedMinute(minute);
-    setGradcamData(null); // Clear previous data
-    setLoadingGradcam(true);
+    // Check cache first
+    if (gradcamCache.has(minute)) {
+      setSelectedMinute(minute);
+      setGradcamData(gradcamCache.get(minute)!);
+      return;
+    }
     
+    // Try loading from IndexedDB
+    const cached = await loadGradCAM(activeFile, minute);
+    if (cached) {
+      setGradcamCache(prev => new Map(prev).set(minute, cached));
+      setSelectedMinute(minute);
+      setGradcamData(cached);
+      return;
+    }
+    
+    // Add to processing queue (non-blocking)
+    setGradcamQueue(prev => new Set(prev).add(minute));
+    
+    // Process in background
     try {
-      const gradcam = await fetchGradcam(activeFile, minute);
-      setGradcamData(gradcam);
-    } catch (e) {
-      console.error('Failed to load Grad-CAM:', e);
-      setLoadingGradcam(false);
+      const recordName = activeFile.replace('.dat', '');
+      const response = await fetch(
+        `http://localhost:8000/api/gradcam/${recordName}?minute=${minute}`,
+        { method: 'POST' }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const gradcamData: GradCAMData = {
+        minute: result.minute,
+        imageUrl: result.image_url,
+        probability: result.probability,
+        predictedClass: result.predicted_class
+      };
+      
+      // Save to IndexedDB
+      await saveGradCAM(activeFile, minute, gradcamData);
+      
+      // Update cache
+      setGradcamCache(prev => new Map(prev).set(minute, gradcamData));
+      
+      // Show notification
+      const notifId = `gradcam_${minute}_${Date.now()}`;
+      setGradcamNotifications(prev => [...prev, { minute, id: notifId }]);
+      
+      // Auto-remove notification after 3 seconds
+      setTimeout(() => {
+        setGradcamNotifications(prev => prev.filter(n => n.id !== notifId));
+      }, 3000);
+      
+    } catch (e: any) {
+      console.error(`Failed to generate Grad-CAM for minute ${minute}:`, e);
+    } finally {
+      // Remove from queue
+      setGradcamQueue(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(minute);
+        return newSet;
+      });
     }
   };
 
@@ -312,12 +383,42 @@ function App() {
     }
   };
 
-  // Fetch predictions when activeFile changes
+  // Load cached Grad-CAMs when file changes
   useEffect(() => {
     if (activeFile) {
-      fetchPredictions(activeFile);
+      loadAllGradCAMs(activeFile).then(cachedGradcams => {
+        setGradcamCache(cachedGradcams);
+      }).catch(e => {
+        console.error('Failed to load cached Grad-CAMs:', e);
+      });
     }
   }, [activeFile]);
+
+  // Clear predictions and related state when switching files
+  useEffect(() => {
+    setPredictions([]);
+    setGradcamData(null);
+    setSelectedMinute(null);
+  }, [activeFile]);
+
+  // Auto-load cached predictions when file changes
+  useEffect(() => {
+    const loadCachedPredictions = async () => {
+      if (activeFile && ecgData.length > 0) {
+        try {
+          const cached = await loadPredictions(activeFile);
+          if (cached && cached.length > 0) {
+            setPredictions(cached);
+          }
+        } catch (e) {
+          console.error('Failed to load cached predictions:', e);
+          // Not a critical error - user can still run analysis
+        }
+      }
+    };
+    
+    loadCachedPredictions();
+  }, [activeFile, ecgData.length]);
 
   // Keyboard shortcuts for zoom and view modes
   useEffect(() => {
@@ -450,7 +551,22 @@ function App() {
         <div className={`${styles.middleColumn} ${isPanelsCollapsed ? styles.expanded : ''}`}>
           {/* ECG Display */}
           <div className={styles.ecgDisplayArea}>
-            <h2>ECG Signal Display</h2>
+            <div className={styles.displayHeader}>
+              <h2>ECG Signal Display</h2>
+              {predicting ? (
+                <div className={styles.predictionBadge}>
+                  <div className={styles.badgeSpinner}></div>
+                  <span>Analyzing...</span>
+                </div>
+              ) : predictions.length === 0 && activeFile && !loading && !error && ecgData.length > 0 ? (
+                <button 
+                  className={styles.runAnalysisButton}
+                  onClick={() => fetchPredictions(activeFile)}
+                >
+                  Run Analysis
+                </button>
+              ) : null}
+            </div>
             
             {/* View Controls */}
             {!loading && !error && ecgData.length > 0 && (
@@ -489,6 +605,17 @@ function App() {
                     </button>
                   ))}
                 </div>
+                
+                {/* Analysis Overlay Toggle */}
+                {predictions.length > 0 && (
+                  <button
+                    className={`${styles.overlayToggle} ${showAnalysisOverlay ? styles.active : ''}`}
+                    onClick={() => setShowAnalysisOverlay(!showAnalysisOverlay)}
+                    title={showAnalysisOverlay ? "Hide analysis overlay" : "Show analysis overlay"}
+                  >
+                    {showAnalysisOverlay ? '👁️ Hide Overlay' : '👁️ Show Overlay'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -496,13 +623,6 @@ function App() {
             {error && <div className={styles.ecgChartPlaceholder} style={{ color: 'red' }}>Error: {error}</div>}
             {!loading && !error && ecgData.length > 0 && (
               <div className={styles.ecgChartWrapper}>
-                {predicting && (
-                  <div className={styles.predictionBadge}>
-                    <div className={styles.badgeSpinner}></div>
-                    <span>Analyzing...</span>
-                  </div>
-                )}
-                
                 {/* Render based on view mode */}
                 {viewMode === 'waveform' && (
                   <EcgChart
@@ -512,6 +632,7 @@ function App() {
                     predictions={predictions}
                     onSegmentClick={handleSegmentClick}
                     isFullView={currentZoom === 'FULL'}
+                    showAnnotations={showAnalysisOverlay}
                   />
                 )}
                 
@@ -562,23 +683,52 @@ function App() {
           {!isPanelsCollapsed && (
             <div className={styles.patientInfoBox}>
               <h3>Patient Information</h3>
-              <div className={styles.patientDetails}>
-                <div className={styles.patientInfoRow}>
-                  <span className={styles.patientLabel}>Patient Name:</span>
-                  <span className={styles.patientValue}>John Doe</span>
-                </div>
-                <div className={styles.patientInfoRow}>
-                  <span className={styles.patientLabel}>Patient #:</span>
-                  <span className={styles.patientValue}>P-2024-001</span>
-                </div>
-                <div className={styles.patientInfoRow}>
-                  <span className={styles.patientLabel}>File:</span>
-                  <span className={styles.patientValue}>{activeFile}</span>
-                </div>
+              
+              {/* Tab Headers */}
+              <div className={styles.tabHeaders}>
+                <button 
+                  className={`${styles.tabButton} ${patientInfoTab === 'details' ? styles.active : ''}`}
+                  onClick={() => setPatientInfoTab('details')}
+                >
+                  Details
+                </button>
+                <button 
+                  className={`${styles.tabButton} ${patientInfoTab === 'predictions' ? styles.active : ''}`}
+                  onClick={() => setPatientInfoTab('predictions')}
+                >
+                  Predictions
+                </button>
+                <button 
+                  className={`${styles.tabButton} ${patientInfoTab === 'minutes' ? styles.active : ''}`}
+                  onClick={() => setPatientInfoTab('minutes')}
+                >
+                  Apneic Minutes
+                </button>
               </div>
 
-              {/* Prediction Summary */}
-              <div className={styles.predictionSummary}>
+              {/* Tab Content */}
+              <div className={styles.tabContent}>
+                {/* Details Tab */}
+                {patientInfoTab === 'details' && (
+                  <div className={styles.patientDetails}>
+                    <div className={styles.patientInfoRow}>
+                      <span className={styles.patientLabel}>Patient Name:</span>
+                      <span className={styles.patientValue}>John Doe</span>
+                    </div>
+                    <div className={styles.patientInfoRow}>
+                      <span className={styles.patientLabel}>Patient #:</span>
+                      <span className={styles.patientValue}>P-2024-001</span>
+                    </div>
+                    <div className={styles.patientInfoRow}>
+                      <span className={styles.patientLabel}>File:</span>
+                      <span className={styles.patientValue}>{activeFile}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Predictions Tab */}
+                {patientInfoTab === 'predictions' && (
+                  <div className={styles.predictionSummary}>
                 <h4>Apnea Detection Summary</h4>
                 {predicting ? (
                   <div className={styles.predictingStatus}>
@@ -604,10 +754,38 @@ function App() {
                       </div>
                     </div>
 
-                    {/* List of Apneic Minutes with Grad-CAM buttons */}
-                    {predictions.filter(p => p.probability >= 0.5).length > 0 && (
-                      <div className={styles.apneicMinutesList}>
-                        <h5>Detected Apneic Minutes</h5>
+                    <button 
+                      className={styles.rerunButton}
+                      onClick={() => fetchPredictions(activeFile)}
+                    >
+                      Re-run Prediction
+                    </button>
+                  </>
+                ) : (
+                  <div className={styles.noPredictions}>
+                    <p>No predictions available yet.</p>
+                    <button 
+                      className={styles.runButton}
+                      onClick={() => fetchPredictions(activeFile)}
+                    >
+                      Run Prediction
+                    </button>
+                  </div>
+                )}
+                  </div>
+                )}
+                
+                {/* Apneic Minutes Tab */}
+                {patientInfoTab === 'minutes' && (
+                  <div className={styles.apneicMinutesTab}>
+                    {predicting ? (
+                      <div className={styles.predictingStatus}>
+                        <div className={styles.smallSpinner}></div>
+                        <span>Running prediction...</span>
+                      </div>
+                    ) : predictions.filter(p => p.probability >= 0.5).length > 0 ? (
+                      <>
+                        <h5>Detected Apneic Minutes ({predictions.filter(p => p.probability >= 0.5).length})</h5>
                         <div className={styles.minutesList}>
                           {predictions
                             .filter(p => p.probability >= 0.5)
@@ -620,12 +798,12 @@ function App() {
                                 <button 
                                   className={styles.explainButton}
                                   onClick={() => handleSegmentClick(pred.minute)}
-                                  disabled={loadingGradcam && selectedMinute === pred.minute}
+                                  disabled={false}
                                 >
-                                  {loadingGradcam && selectedMinute === pred.minute ? (
+                                  {gradcamQueue.has(pred.minute) ? (
                                     <>
                                       <div className={styles.smallSpinner}></div>
-                                      <span>Loading...</span>
+                                      <span>Processing...</span>
                                     </>
                                   ) : gradcamCache.has(pred.minute) ? (
                                     <>👁️ View</>
@@ -646,25 +824,12 @@ function App() {
                             Generate All Explanations
                           </button>
                         )}
+                      </>
+                    ) : (
+                      <div className={styles.noApneicMinutes}>
+                        <p>No apneic minutes detected in this record.</p>
                       </div>
                     )}
-
-                    <button 
-                      className={styles.rerunButton}
-                      onClick={() => fetchPredictions(activeFile)}
-                    >
-                      Re-run Prediction
-                    </button>
-                  </>
-                ) : (
-                  <div className={styles.noPredictions}>
-                    <p>No predictions available yet.</p>
-                    <button 
-                      className={styles.runButton}
-                      onClick={() => fetchPredictions(activeFile)}
-                    >
-                      Run Prediction
-                    </button>
                   </div>
                 )}
               </div>
@@ -785,6 +950,21 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <div className={styles.notificationContainer}>
+        {gradcamNotifications.map(notif => (
+          <div key={notif.id} className={styles.toast}>
+            <span>✓ Grad-CAM for Minute {notif.minute} ready</span>
+            <button 
+              className={styles.toastButton}
+              onClick={() => handleSegmentClick(notif.minute)}
+            >
+              View
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

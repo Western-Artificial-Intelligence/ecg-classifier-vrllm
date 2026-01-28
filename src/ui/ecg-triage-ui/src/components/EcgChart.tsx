@@ -35,6 +35,7 @@ interface EcgChartProps {
   predictions?: Prediction[];
   onSegmentClick?: (minute: number) => void;
   isFullView?: boolean; // Whether displaying full record
+  showAnnotations?: boolean; // Whether to show analysis overlays
 }
 
 const EcgChart: React.FC<EcgChartProps> = ({ 
@@ -43,7 +44,8 @@ const EcgChart: React.FC<EcgChartProps> = ({
   startIndex, 
   predictions = [],
   onSegmentClick,
-  isFullView = false
+  isFullView = false,
+  showAnnotations = true
 }) => {
   // Downsample data for full view
   const downsampleData = (data: number[], targetPoints: number = 3000): number[] => {
@@ -66,7 +68,17 @@ const EcgChart: React.FC<EcgChartProps> = ({
     return downsampled;
   };
   const chartRef = useRef<ChartJS<'line'>>(null);
-  const [chartData, setChartData] = useState({
+  const [chartData, setChartData] = useState<{
+    labels: string[];
+    datasets: Array<{
+      label: string;
+      data: number[];
+      borderColor: string;
+      backgroundColor: string;
+      tension: number;
+      pointRadius: number;
+    }>;
+  }>({
     labels: [],
     datasets: [
       {
@@ -96,7 +108,6 @@ const EcgChart: React.FC<EcgChartProps> = ({
     let labels: string[];
     if (isFullView) {
       // Assume 100 Hz sampling rate, so 6000 samples = 1 minute
-      const totalMinutes = Math.ceil(dataPoints.length / 6000);
       labels = visibleData.map((_, i) => {
         const sampleIndex = Math.floor((i / visibleData.length) * dataPoints.length);
         return Math.floor(sampleIndex / 6000).toString();
@@ -109,8 +120,12 @@ const EcgChart: React.FC<EcgChartProps> = ({
       labels: labels,
       datasets: [
         {
-          ...chartData.datasets[0],
+          label: 'ECG Signal',
           data: visibleData,
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.5)',
+          tension: 0.1,
+          pointRadius: 0,
         },
       ],
     });
@@ -168,13 +183,12 @@ const EcgChart: React.FC<EcgChartProps> = ({
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    onClick: (event: any, elements: any[], chart: any) => {
+    onClick: (event: any, _elements: any[], chart: any) => {
       // Check if click is on an annotation
       if (chart && chart.options && chart.options.plugins && chart.options.plugins.annotation) {
         const annotations = chart.options.plugins.annotation.annotations;
         if (annotations) {
           // Find which annotation was clicked
-          const chartArea = chart.chartArea;
           const x = event.x;
           
           for (const key in annotations) {
@@ -205,7 +219,7 @@ const EcgChart: React.FC<EcgChartProps> = ({
         text: 'ECG Signal',
       },
       annotation: {
-        annotations: createAnnotations()
+        annotations: showAnnotations ? createAnnotations() : {}
       },
       tooltip: {
         enabled: !isFullView, // Disable tooltips for full view (performance)
