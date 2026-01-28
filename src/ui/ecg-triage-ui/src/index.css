@@ -1,4 +1,4 @@
-/* Global Styles and CSS Reset */
+/* Global Styles and CSS Reset - Tellaia Light Theme */
 
 * {
   margin: 0;
@@ -17,8 +17,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #1a1a2e;
-  background-color: #ffffff;
+  color: #1a1a1a;
+  background: linear-gradient(180deg, #E3EFFF 0%, #EDF5FF 20%, #F5F9FF 40%, #FAFCFF 60%, #FFFFFF 100%);
 }
 
 code {
@@ -44,27 +44,29 @@ a {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #f5f5f5;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #6366f1;
+  background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f46e5;
+  background: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
 }
 
 /* Selection color */
 ::selection {
-  background-color: rgba(99, 102, 241, 0.3);
-  color: #1a1a2e;
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #1a1a1a;
 }
 
 /* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid #3B82F6;
   outline-offset: 2px;
 }
 
+/* Google Fonts Import - Inter + Playfair Display (Serif) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
