@@ -1,8 +1,8 @@
 // IndexedDB wrapper for analysis results
 const DB_NAME = 'ECGAnalysisDB';
-const DB_VERSION = 1;
+const DB_VERSION = 3;  // Incremented to remove gradcams store
 const PREDICTIONS_STORE = 'predictions';
-const GRADCAM_STORE = 'gradcams';
+const STATS_STORE = 'stats';
 
 interface Prediction {
   minute: number;
@@ -15,20 +15,11 @@ interface StoredPrediction {
   predictions: Prediction[];
 }
 
-interface GradCAMData {
-  minute: number;
-  imageUrl: string;
-  probability: number;
-  predictedClass: string;
-}
 
-interface StoredGradCAM {
+interface StoredStats {
   filename: string;
-  minute: number;
-  imageData: string; // base64
-  probability: number;
-  predictedClass: string;
   timestamp: number;
+  stats: any; // ECGStats type
 }
 
 // Initialize DB
@@ -48,11 +39,15 @@ export const initDB = (): Promise<IDBDatabase> => {
         predictionsStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
 
-      // Create Grad-CAM store
-      if (!db.objectStoreNames.contains(GRADCAM_STORE)) {
-        const gradcamStore = db.createObjectStore(GRADCAM_STORE, { keyPath: ['filename', 'minute'] });
-        gradcamStore.createIndex('filename', 'filename', { unique: false });
-        gradcamStore.createIndex('timestamp', 'timestamp', { unique: false });
+      // Remove Grad-CAM store if it exists (no longer needed)
+      if (db.objectStoreNames.contains('gradcams')) {
+        db.deleteObjectStore('gradcams');
+      }
+
+      // Create Stats store
+      if (!db.objectStoreNames.contains(STATS_STORE)) {
+        const statsStore = db.createObjectStore(STATS_STORE, { keyPath: 'filename' });
+        statsStore.createIndex('timestamp', 'timestamp', { unique: false });
       }
     };
   });
@@ -101,24 +96,21 @@ export const loadPredictions = async (filename: string): Promise<Prediction[] | 
   });
 };
 
-// Save Grad-CAM
-export const saveGradCAM = async (filename: string, minute: number, data: GradCAMData): Promise<void> => {
+// Save stats
+export const saveStats = async (filename: string, stats: any): Promise<void> => {
   const db = await initDB();
   
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADCAM_STORE], 'readwrite');
-    const store = transaction.objectStore(GRADCAM_STORE);
+    const transaction = db.transaction([STATS_STORE], 'readwrite');
+    const store = transaction.objectStore(STATS_STORE);
     
-    const storedData: StoredGradCAM = {
+    const data: StoredStats = {
       filename,
-      minute,
-      imageData: data.imageUrl,
-      probability: data.probability,
-      predictedClass: data.predictedClass,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      stats
     };
     
-    const request = store.put(storedData);
+    const request = store.put(data);
     
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -127,60 +119,19 @@ export const saveGradCAM = async (filename: string, minute: number, data: GradCA
   });
 };
 
-// Load Grad-CAM
-export const loadGradCAM = async (filename: string, minute: number): Promise<GradCAMData | null> => {
+// Load stats
+export const loadStats = async (filename: string): Promise<any | null> => {
   const db = await initDB();
   
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADCAM_STORE], 'readonly');
-    const store = transaction.objectStore(GRADCAM_STORE);
+    const transaction = db.transaction([STATS_STORE], 'readonly');
+    const store = transaction.objectStore(STATS_STORE);
     
-    const request = store.get([filename, minute]);
-    
-    request.onsuccess = () => {
-      const result = request.result as StoredGradCAM | undefined;
-      if (result) {
-        resolve({
-          minute: result.minute,
-          imageUrl: result.imageData,
-          probability: result.probability,
-          predictedClass: result.predictedClass
-        });
-      } else {
-        resolve(null);
-      }
-    };
-    request.onerror = () => reject(request.error);
-    
-    transaction.oncomplete = () => db.close();
-  });
-};
-
-// Load all Grad-CAMs for a file
-export const loadAllGradCAMs = async (filename: string): Promise<Map<number, GradCAMData>> => {
-  const db = await initDB();
-  
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([GRADCAM_STORE], 'readonly');
-    const store = transaction.objectStore(GRADCAM_STORE);
-    const index = store.index('filename');
-    
-    const request = index.getAll(filename);
+    const request = store.get(filename);
     
     request.onsuccess = () => {
-      const results = request.result as StoredGradCAM[];
-      const gradcamMap = new Map<number, GradCAMData>();
-      
-      results.forEach(item => {
-        gradcamMap.set(item.minute, {
-          minute: item.minute,
-          imageUrl: item.imageData,
-          probability: item.probability,
-          predictedClass: item.predictedClass
-        });
-      });
-      
-      resolve(gradcamMap);
+      const result = request.result as StoredStats | undefined;
+      resolve(result ? result.stats : null);
     };
     request.onerror = () => reject(request.error);
     

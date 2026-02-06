@@ -3,7 +3,7 @@ import styles from './styles/App.module.css';
 import EcgChart from './components/EcgChart';
 import MinimapView from './components/MinimapView';
 import SummaryChartView from './components/SummaryChartView';
-import { savePredictions, loadPredictions, saveGradCAM, loadGradCAM, loadAllGradCAMs } from './utils/storage';
+import { savePredictions, loadPredictions, saveStats, loadStats } from './utils/storage';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -28,6 +28,51 @@ interface GradCAMData {
   imageUrl: string;
   probability: number;
   predictedClass: string;
+  recordingFile?: string;
+}
+
+interface Tab {
+  id: string;
+  type: 'ecg' | 'gradcam';
+  title: string;
+  
+  // For ECG tabs
+  ecgFile?: string;
+  viewMode?: ViewMode;
+  startIndex?: number;
+  zoom?: ZoomLevel;
+  
+  // For Grad-CAM tabs
+  minute?: number;
+  gradcamData?: GradCAMData;
+}
+
+interface ECGStats {
+  hrv_time?: {
+    mean_rri_ms: number;
+    sdnn_ms: number;
+    rmssd_ms: number;
+    pnn50_percent: number;
+    cv_percent: number;
+  };
+  hrv_freq?: {
+    vlf_power_ms2: number;
+    lf_power_ms2: number;
+    hf_power_ms2: number;
+    total_power_ms2: number;
+    lf_hf_ratio: number;
+  };
+  edr?: {
+    resp_rate_bpm: number;
+    edr_amplitude_range: number;
+    edr_variability: number;
+  };
+  rpeak?: {
+    num_rpeaks: number;
+    mean_hr_bpm: number;
+    hr_std_bpm: number;
+    recording_duration_min: number;
+  };
 }
 
 type ZoomLevel = 'DETAIL' | 'MINUTE_1' | 'MINUTE_5' | 'FULL';
@@ -65,19 +110,47 @@ function App() {
 
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [predicting, setPredicting] = useState<boolean>(false);
-  const [selectedMinute, setSelectedMinute] = useState<number | null>(null);
-  const [gradcamData, setGradcamData] = useState<GradCAMData | null>(null);
-  const [loadingGradcam, setLoadingGradcam] = useState<boolean>(false);
-  const [gradcamCache, setGradcamCache] = useState<Map<number, GradCAMData>>(new Map());
+  
+  // New cache structure for tab system
+  interface RecordingCache {
+    ecgData: number[];
+    predictions: Prediction[];
+    stats: ECGStats | null;
+  }
+  
+  interface GradCAMCache {
+    minute: number;
+    imageUrl: string;
+    probability: number;
+    predictedClass: string;
+    recordingFile: string;
+  }
+  
+  const [openRecordings, setOpenRecordings] = useState<Map<string, RecordingCache>>(new Map());
+  const [gradcamImages, setGradcamImages] = useState<Map<string, GradCAMCache>>(new Map());
+  const [openGradcamTabs, setOpenGradcamTabs] = useState<Set<string>>(new Set());
+  
+  // Tab system state
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
+  
   const [currentZoom, setCurrentZoom] = useState<ZoomLevel>('DETAIL');
   const [viewMode, setViewMode] = useState<ViewMode>('waveform');
-  const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes'>('details');
+  const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes' | 'physio'>('details');
   const [gradcamQueue, setGradcamQueue] = useState<Set<number>>(new Set());
   const [gradcamNotifications, setGradcamNotifications] = useState<Array<{minute: number, id: string}>>([]);
   const [showAnalysisOverlay, setShowAnalysisOverlay] = useState<boolean>(true);
+  const [ecgStats, setEcgStats] = useState<ECGStats | null>(null);
+  const [generatingAll, setGeneratingAll] = useState<boolean>(false);
+  const [generationProgress, setGenerationProgress] = useState<{current: number, total: number}>({current: 0, total: 0});
+  
+  // Helper function to create cache key
+  const getCacheKey = (filename: string, minute: number) => `${filename}_${minute}`;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // Calculate view window size based on current zoom level
   const viewWindowSize = ZOOM_PRESETS[currentZoom].samples === -1 
@@ -96,45 +169,131 @@ function App() {
     });
   };
 
+  // Get the currently active tab
+  const activeTab = tabs.find(t => t.id === activeTabId);
+
   // Scroll to bottom of chat when new messages arrive
   useEffect(() => {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Synchronize active tab data with display state
   useEffect(() => {
-    const fetchEcgData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        // Assuming backend is running on port 8000
-        const response = await fetch(`http://localhost:8000/api/ecg_data/${activeFile}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const result = await response.json();
-        if (result && result.data) {
-          setEcgData(result.data);
-          setStartIndex(0); // Reset view when loading new file
-        } else {
-          throw new Error('Invalid data format received from backend');
-        }
-      } catch (e: any) {
-        setError(e.message);
-        console.error("Failed to fetch ECG data:", e);
-      } finally {
-        setLoading(false);
+    if (activeTab && activeTab.type === 'ecg' && activeTab.ecgFile) {
+      // Update activeFile to match the tab
+      setActiveFile(activeTab.ecgFile);
+      
+      // Load data from cache if available
+      const cached = openRecordings.get(activeTab.ecgFile);
+      if (cached) {
+        setEcgData(cached.ecgData);
+        setPredictions(cached.predictions);
+        setEcgStats(cached.stats);
       }
-    };
+      
+      // Restore tab-specific view settings
+      if (activeTab.viewMode) setViewMode(activeTab.viewMode);
+      if (activeTab.zoom) setCurrentZoom(activeTab.zoom);
+      if (activeTab.startIndex !== undefined) setStartIndex(activeTab.startIndex);
+    }
+  }, [activeTabId, activeTab, openRecordings]);
 
-    fetchEcgData();
-  }, [activeFile]); // Re-fetch when active file changes
 
   const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setStartIndex(Number(event.target.value));
+    const newIndex = Number(event.target.value);
+    setStartIndex(newIndex);
+    // Update the active tab's position
+    updateActiveTab({ startIndex: newIndex });
   };
 
-  const handleFileSelect = (fileName: string) => {
+  const handleFileSelect = async (fileName: string) => {
     setActiveFile(fileName);
+    
+    // Check if tab already exists for this file
+    const existingTab = tabs.find(t => t.type === 'ecg' && t.ecgFile === fileName);
+    
+    if (existingTab) {
+      // Tab exists, just switch to it
+      setActiveTabId(existingTab.id);
+    } else {
+      // New tab - create it
+      createECGTab(fileName);
+      
+      // Load and cache recording data if not already cached
+      if (!openRecordings.has(fileName)) {
+        try {
+          // Load ECG data
+          setLoading(true);
+          const response = await fetch(`http://localhost:8000/api/ecg_data/${fileName}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const result = await response.json();
+          
+          // Load predictions and stats from IndexedDB if available
+          let cachedPredictions = await loadPredictions(fileName);
+          let cachedStats = await loadStats(fileName);
+          
+          // If no predictions but we have ECG data, try fetching from API
+          if (!cachedPredictions || cachedPredictions.length === 0) {
+            // Check if predictions exist on backend
+            try {
+              const recordName = fileName.replace('.dat', '');
+              const predResponse = await fetch(`http://localhost:8000/api/predict/${recordName}`, {
+                method: 'POST'
+              });
+              
+              if (predResponse.ok) {
+                const predResult = await predResponse.json();
+                const fetchedPredictions = predResult.predictions || [];
+                const fetchedStats = predResult.stats || null;
+                
+                cachedPredictions = fetchedPredictions;
+                cachedStats = fetchedStats;
+                
+                // Save to IndexedDB for future
+                if (fetchedPredictions.length > 0) {
+                  await savePredictions(fileName, fetchedPredictions);
+                }
+                if (fetchedStats) {
+                  await saveStats(fileName, fetchedStats);
+                }
+              }
+            } catch (e) {
+              console.error('Failed to fetch predictions:', e);
+            }
+          }
+          
+          // Cache the recording data
+          setOpenRecordings(prev => new Map(prev).set(fileName, {
+            ecgData: result.data || [],
+            predictions: cachedPredictions || [],
+            stats: cachedStats || null
+          }));
+          
+          // Update state for rendering
+          setEcgData(result.data || []);
+          setPredictions(cachedPredictions || []);
+          setEcgStats(cachedStats || null);
+          
+          // Batch load available Grad-CAM metadata
+          await loadGradcamMetadata(fileName);
+          
+          setLoading(false);
+        } catch (e: any) {
+          console.error('Failed to load recording:', e);
+          setError(e.message);
+          setLoading(false);
+        }
+      } else {
+        // Recording already cached, load from cache
+        const cached = openRecordings.get(fileName)!;
+        setEcgData(cached.ecgData);
+        setPredictions(cached.predictions);
+        setEcgStats(cached.stats);
+        setLoading(false);
+      }
+    }
   };
 
   const validateDatFile = (file: File): boolean => {
@@ -222,6 +381,159 @@ function App() {
     }
   };
 
+  // Load all available Grad-CAM images for a recording
+  const loadGradcamMetadata = async (filename: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/gradcam/list/${filename}`);
+      const result = await response.json();
+      
+      // Update gradcamImages cache for this recording
+      setGradcamImages(prev => {
+        const newCache = new Map(prev);
+        
+        result.images.forEach((img: any) => {
+          const key = getCacheKey(filename, img.minute);
+          newCache.set(key, {
+            minute: img.minute,
+            imageUrl: img.image_url,
+            probability: img.probability,
+            predictedClass: img.predicted_class,
+            recordingFile: filename
+          });
+        });
+        
+        return newCache;
+      });
+    } catch (e) {
+      console.error('Failed to load Grad-CAM metadata:', e);
+    }
+  };
+
+  // Tab Management Functions
+  const createECGTab = (filename: string) => {
+    // Check if tab already exists for this file
+    const existing = tabs.find(t => t.type === 'ecg' && t.ecgFile === filename);
+    if (existing) {
+      setActiveTabId(existing.id);
+      return;
+    }
+    
+    const tabId = `ecg-${filename}-${Date.now()}`;
+    const newTab: Tab = {
+      id: tabId,
+      type: 'ecg',
+      title: filename,
+      ecgFile: filename,
+      viewMode: 'waveform',
+      startIndex: 0,
+      zoom: 'DETAIL'
+    };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(tabId);
+  };
+
+  const createGradCAMTab = (minute: number, gradcamData: GradCAMData) => {
+    // Check if tab already exists for this minute
+    const existing = tabs.find(t => 
+      t.type === 'gradcam' && 
+      t.minute === minute &&
+      gradcamData.recordingFile === activeFile
+    );
+    if (existing) {
+      setActiveTabId(existing.id);
+      return;
+    }
+    
+    // Extract recording name without .dat extension
+    const recordingName = activeFile.replace('.dat', '');
+    
+    const tabId = `gradcam-${minute}-${Date.now()}`;
+    const newTab: Tab = {
+      id: tabId,
+      type: 'gradcam',
+      title: `${recordingName} Min ${minute}`,
+      minute,
+      gradcamData
+    };
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(tabId);
+  };
+
+  const closeTab = (tabId: string) => {
+    const tab = tabs.find(t => t.id === tabId);
+    if (!tab) return;
+    
+    if (tab.type === 'ecg') {
+      // Closing a recording tab
+      const filename = tab.ecgFile!;
+      
+      // Remove recording from cache
+      setOpenRecordings(prev => {
+        const newCache = new Map(prev);
+        newCache.delete(filename);
+        return newCache;
+      });
+      
+      // Remove Grad-CAM images ONLY if no Grad-CAM tabs are open for them
+      setGradcamImages(prev => {
+        const newCache = new Map(prev);
+        
+        // Get all images for this recording
+        Array.from(newCache.entries()).forEach(([key, data]) => {
+          if (data.recordingFile === filename) {
+            // Only delete if no open tab for this image
+            if (!openGradcamTabs.has(key)) {
+              newCache.delete(key);
+            }
+          }
+        });
+        
+        return newCache;
+      });
+      
+    } else if (tab.type === 'gradcam') {
+      // Closing a Grad-CAM tab
+      const cacheKey = getCacheKey(activeFile, tab.minute!);
+      
+      // Remove from openGradcamTabs
+      setOpenGradcamTabs(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(cacheKey);
+        return newSet;
+      });
+      
+      // Check if parent recording is still open
+      const parentRecordingOpen = tabs.some(t => 
+        t.type === 'ecg' && 
+        t.ecgFile === gradcamImages.get(cacheKey)?.recordingFile
+      );
+      
+      // If parent recording is closed, remove the image from cache
+      if (!parentRecordingOpen) {
+        setGradcamImages(prev => {
+          const newCache = new Map(prev);
+          newCache.delete(cacheKey);
+          return newCache;
+        });
+      }
+    }
+    
+    // Remove tab from tabs array
+    setTabs(prev => prev.filter(t => t.id !== tabId));
+    
+    // Switch to another tab if closing active tab
+    if (activeTabId === tabId) {
+      const remainingTabs = tabs.filter(t => t.id !== tabId);
+      setActiveTabId(remainingTabs.length > 0 ? remainingTabs[0].id : null);
+    }
+  };
+
+  const updateActiveTab = (updates: Partial<Tab>) => {
+    setTabs(prev => prev.map(t => 
+      t.id === activeTabId ? { ...t, ...updates } : t
+    ));
+  };
+  
   // Fetch predictions for the active file
   const fetchPredictions = async (filename: string) => {
     setPredicting(true);
@@ -230,6 +542,11 @@ function App() {
       const cached = await loadPredictions(filename);
       if (cached) {
         setPredictions(cached);
+        // Also load cached stats if available
+        const cachedStats = await loadStats(filename);
+        if (cachedStats) {
+          setEcgStats(cachedStats);
+        }
         setPredicting(false);
         return;
       }
@@ -246,10 +563,28 @@ function App() {
       
       const result = await response.json();
       const predictions = result.predictions || [];
+      const stats = result.stats || {};
+      
       setPredictions(predictions);
+      setEcgStats(stats);
       
       // Save to IndexedDB
       await savePredictions(filename, predictions);
+      await saveStats(filename, stats);
+      
+      // Update the cache for this recording
+      setOpenRecordings(prev => {
+        const newCache = new Map(prev);
+        const existing = newCache.get(filename);
+        if (existing) {
+          newCache.set(filename, {
+            ...existing,
+            predictions,
+            stats
+          });
+        }
+        return newCache;
+      });
     } catch (e: any) {
       console.error('Error fetching predictions:', e);
       setError(`Prediction error: ${e.message}`);
@@ -258,60 +593,13 @@ function App() {
     }
   };
 
-  // Fetch Grad-CAM visualization for a specific minute
-  const fetchGradcam = async (filename: string, minute: number) => {
-    // Check cache first
-    if (gradcamCache.has(minute)) {
-      return gradcamCache.get(minute)!;
-    }
-
-    setLoadingGradcam(true);
-    try {
-      const recordName = filename.replace('.dat', '');
-      const response = await fetch(
-        `http://localhost:8000/api/gradcam/${recordName}?minute=${minute}`,
-        { method: 'POST' }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      const gradcamData: GradCAMData = {
-        minute: result.minute,
-        imageUrl: result.image_url,
-        probability: result.probability,
-        predictedClass: result.predicted_class
-      };
-      
-      // Cache the result
-      setGradcamCache(prev => new Map(prev).set(minute, gradcamData));
-      
-      return gradcamData;
-    } catch (e: any) {
-      console.error('Error fetching Grad-CAM:', e);
-      throw e;
-    } finally {
-      setLoadingGradcam(false);
-    }
-  };
-
-  // Handle segment click to show Grad-CAM (non-blocking)
+  // Handle segment click to generate Grad-CAM silently (non-blocking)
   const handleSegmentClick = async (minute: number) => {
-    // Check cache first
-    if (gradcamCache.has(minute)) {
-      setSelectedMinute(minute);
-      setGradcamData(gradcamCache.get(minute)!);
-      return;
-    }
+    const cacheKey = getCacheKey(activeFile, minute);
     
-    // Try loading from IndexedDB
-    const cached = await loadGradCAM(activeFile, minute);
-    if (cached) {
-      setGradcamCache(prev => new Map(prev).set(minute, cached));
-      setSelectedMinute(minute);
-      setGradcamData(cached);
+    // Check if already cached
+    if (gradcamImages.has(cacheKey)) {
+      // Already cached, nothing to do
       return;
     }
     
@@ -331,27 +619,28 @@ function App() {
       }
       
       const result = await response.json();
-      const gradcamData: GradCAMData = {
-        minute: result.minute,
-        imageUrl: result.image_url,
-        probability: result.probability,
-        predictedClass: result.predicted_class
-      };
       
-      // Save to IndexedDB
-      await saveGradCAM(activeFile, minute, gradcamData);
-      
-      // Update cache
-      setGradcamCache(prev => new Map(prev).set(minute, gradcamData));
+      // IMMEDIATELY cache the image (backend already saved it to disk)
+      setGradcamImages(prev => {
+        const newCache = new Map(prev);
+        newCache.set(cacheKey, {
+          minute: result.minute,
+          imageUrl: result.image_url,
+          probability: result.probability,
+          predictedClass: result.predicted_class,
+          recordingFile: activeFile
+        });
+        return newCache;
+      });
       
       // Show notification
       const notifId = `gradcam_${minute}_${Date.now()}`;
       setGradcamNotifications(prev => [...prev, { minute, id: notifId }]);
       
-      // Auto-remove notification after 3 seconds
+      // Auto-remove notification after 5 seconds
       setTimeout(() => {
         setGradcamNotifications(prev => prev.filter(n => n.id !== notifId));
-      }, 3000);
+      }, 5000);
       
     } catch (e: any) {
       console.error(`Failed to generate Grad-CAM for minute ${minute}:`, e);
@@ -365,60 +654,128 @@ function App() {
     }
   };
 
-  // Generate all Grad-CAMs for apneic minutes
-  const handleGenerateAllGradcams = async () => {
-    const apneicMinutes = predictions
-      .filter(p => p.probability >= 0.5)
-      .map(p => p.minute);
+  // Handle View button click to create Grad-CAM tab
+  const handleViewGradCAM = (minute: number) => {
+    const cacheKey = getCacheKey(activeFile, minute);
+    const imageData = gradcamImages.get(cacheKey);
     
-    for (let i = 0; i < apneicMinutes.length; i++) {
-      const minute = apneicMinutes[i];
-      if (!gradcamCache.has(minute)) {
-        try {
-          await fetchGradcam(activeFile, minute);
-        } catch (e) {
-          console.error(`Failed to generate Grad-CAM for minute ${minute}:`, e);
-        }
-      }
+    if (imageData) {
+      // Create tab and mark as open
+      createGradCAMTab(minute, {
+        minute: imageData.minute,
+        imageUrl: imageData.imageUrl,
+        probability: imageData.probability,
+        predictedClass: imageData.predictedClass
+      });
+      
+      // Track that this Grad-CAM tab is now open
+      setOpenGradcamTabs(prev => new Set(prev).add(cacheKey));
+    } else {
+      alert('Please generate the Grad-CAM explanation first by clicking "Explain".');
     }
   };
 
-  // Load cached Grad-CAMs when file changes
-  useEffect(() => {
-    if (activeFile) {
-      loadAllGradCAMs(activeFile).then(cachedGradcams => {
-        setGradcamCache(cachedGradcams);
-      }).catch(e => {
-        console.error('Failed to load cached Grad-CAMs:', e);
-      });
+  // Generate all Grad-CAMs for apneic minutes with cancellation support
+  const handleGenerateAllGradcams = async () => {
+    const apneicMinutes = predictions
+      .filter(p => p.probability >= 0.5)
+      .map(p => p.minute)
+      .filter(minute => !gradcamImages.has(getCacheKey(activeFile, minute))); // Only process uncached minutes
+    
+    if (apneicMinutes.length === 0) {
+      return;
     }
-  }, [activeFile]);
 
-  // Clear predictions and related state when switching files
-  useEffect(() => {
-    setPredictions([]);
-    setGradcamData(null);
-    setSelectedMinute(null);
-  }, [activeFile]);
-
-  // Auto-load cached predictions when file changes
-  useEffect(() => {
-    const loadCachedPredictions = async () => {
-      if (activeFile && ecgData.length > 0) {
+    setGeneratingAll(true);
+    setGenerationProgress({ current: 0, total: apneicMinutes.length });
+    
+    // Create abort controller
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    try {
+      let completed = 0;
+      
+      // Process sequentially to allow cancellation
+      for (const minute of apneicMinutes) {
+        if (controller.signal.aborted) {
+          break;
+        }
+        
+        const cacheKey = getCacheKey(activeFile, minute);
+        
+        // Check if already cached (might have been generated while processing)
+        if (gradcamImages.has(cacheKey)) {
+          completed++;
+          setGenerationProgress({ current: completed, total: apneicMinutes.length });
+          continue;
+        }
+        
+        // Add to processing queue
+        setGradcamQueue(prev => new Set(prev).add(minute));
+        
         try {
-          const cached = await loadPredictions(activeFile);
-          if (cached && cached.length > 0) {
-            setPredictions(cached);
+          const recordName = activeFile.replace('.dat', '');
+          const response = await fetch(
+            `http://localhost:8000/api/gradcam/${recordName}?minute=${minute}`,
+            { 
+              method: 'POST',
+              signal: controller.signal 
+            }
+          );
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
           }
-        } catch (e) {
-          console.error('Failed to load cached predictions:', e);
-          // Not a critical error - user can still run analysis
+          
+          const result = await response.json();
+          
+          // Cache the image
+          setGradcamImages(prev => {
+            const newCache = new Map(prev);
+            newCache.set(cacheKey, {
+              minute: result.minute,
+              imageUrl: result.image_url,
+              probability: result.probability,
+              predictedClass: result.predicted_class,
+              recordingFile: activeFile
+            });
+            return newCache;
+          });
+          
+          completed++;
+          setGenerationProgress({ current: completed, total: apneicMinutes.length });
+          
+        } catch (e: any) {
+          if (e.name === 'AbortError') {
+            console.log('Generation cancelled');
+            break;
+          }
+          console.error(`Failed to generate Grad-CAM for minute ${minute}:`, e);
+        } finally {
+          // Remove from queue
+          setGradcamQueue(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(minute);
+            return newSet;
+          });
         }
       }
-    };
-    
-    loadCachedPredictions();
-  }, [activeFile, ecgData.length]);
+    } finally {
+      setGeneratingAll(false);
+      setGenerationProgress({ current: 0, total: 0 });
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancelGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+
+
 
   // Keyboard shortcuts for zoom and view modes
   useEffect(() => {
@@ -551,43 +908,83 @@ function App() {
         <div className={`${styles.middleColumn} ${isPanelsCollapsed ? styles.expanded : ''}`}>
           {/* ECG Display */}
           <div className={styles.ecgDisplayArea}>
-            <div className={styles.displayHeader}>
-              <h2>ECG Signal Display</h2>
-              {predicting ? (
-                <div className={styles.predictionBadge}>
-                  <div className={styles.badgeSpinner}></div>
-                  <span>Analyzing...</span>
+            {/* Tab Bar */}
+            {tabs.length > 0 && (
+              <div className={styles.tabBar}>
+                <div className={styles.tabList}>
+                  {tabs.map(tab => (
+                    <div
+                      key={tab.id}
+                      className={`${styles.tab} ${activeTabId === tab.id ? styles.active : ''}`}
+                      onClick={() => setActiveTabId(tab.id)}
+                      onMouseEnter={() => setHoveredTabId(tab.id)}
+                      onMouseLeave={() => setHoveredTabId(null)}
+                    >
+                      <span className={styles.tabIcon}>
+                        {tab.type === 'ecg' ? <span className={styles.ecgIcon}>R</span> : '🔍'}
+                      </span>
+                      <span className={styles.tabTitle}>{tab.title}</span>
+                      {hoveredTabId === tab.id && (
+                        <button
+                          className={styles.tabClose}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            closeTab(tab.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ) : predictions.length === 0 && activeFile && !loading && !error && ecgData.length > 0 ? (
-                <button 
-                  className={styles.runAnalysisButton}
-                  onClick={() => fetchPredictions(activeFile)}
-                >
-                  Run Analysis
-                </button>
-              ) : null}
-            </div>
+                <div className={styles.tabBarActions}>
+                  {predicting ? (
+                    <div className={styles.predictionBadge}>
+                      <div className={styles.badgeSpinner}></div>
+                      <span>Analyzing...</span>
+                    </div>
+                  ) : predictions.length === 0 && activeFile && !loading && !error && ecgData.length > 0 ? (
+                    <button 
+                      className={styles.runAnalysisButton}
+                      onClick={() => fetchPredictions(activeFile)}
+                    >
+                      Run Analysis
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            )}
             
-            {/* View Controls */}
-            {!loading && !error && ecgData.length > 0 && (
+            {/* View Controls - Only show for ECG tabs */}
+            {activeTab && activeTab.type === 'ecg' && !loading && !error && (
               <div className={styles.viewControls}>
                 {/* View Mode Tabs */}
                 <div className={styles.viewModeTabs}>
                   <button
-                    className={`${styles.viewModeTab} ${viewMode === 'waveform' ? styles.active : ''}`}
-                    onClick={() => setViewMode('waveform')}
+                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'waveform' ? styles.active : ''}`}
+                    onClick={() => {
+                      setViewMode('waveform');
+                      updateActiveTab({ viewMode: 'waveform' });
+                    }}
                   >
                     Waveform
                   </button>
                   <button
-                    className={`${styles.viewModeTab} ${viewMode === 'minimap' ? styles.active : ''}`}
-                    onClick={() => setViewMode('minimap')}
+                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'minimap' ? styles.active : ''}`}
+                    onClick={() => {
+                      setViewMode('minimap');
+                      updateActiveTab({ viewMode: 'minimap' });
+                    }}
                   >
                     Minimap
                   </button>
                   <button
-                    className={`${styles.viewModeTab} ${viewMode === 'summary' ? styles.active : ''}`}
-                    onClick={() => setViewMode('summary')}
+                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'summary' ? styles.active : ''}`}
+                    onClick={() => {
+                      setViewMode('summary');
+                      updateActiveTab({ viewMode: 'summary' });
+                    }}
                   >
                     Summary
                   </button>
@@ -598,8 +995,11 @@ function App() {
                   {(Object.keys(ZOOM_PRESETS) as ZoomLevel[]).map((zoomKey) => (
                     <button
                       key={zoomKey}
-                      className={`${styles.zoomButton} ${currentZoom === zoomKey ? styles.active : ''}`}
-                      onClick={() => setCurrentZoom(zoomKey)}
+                      className={`${styles.zoomButton} ${(activeTab?.zoom || currentZoom) === zoomKey ? styles.active : ''}`}
+                      onClick={() => {
+                        setCurrentZoom(zoomKey);
+                        updateActiveTab({ zoom: zoomKey });
+                      }}
                     >
                       {ZOOM_PRESETS[zoomKey].label}
                     </button>
@@ -619,13 +1019,16 @@ function App() {
               </div>
             )}
 
-            {loading && <div className={styles.ecgChartPlaceholder}>Loading ECG Data...</div>}
-            {error && <div className={styles.ecgChartPlaceholder} style={{ color: 'red' }}>Error: {error}</div>}
-            {!loading && !error && ecgData.length > 0 && (
-              <div className={styles.ecgChartWrapper}>
-                {/* Render based on view mode */}
-                {viewMode === 'waveform' && (
-                  <EcgChart
+            {/* Content rendering based on active tab */}
+            {activeTab && activeTab.type === 'ecg' && (
+              <>
+                {loading && <div className={styles.ecgChartPlaceholder}>Loading ECG Data...</div>}
+                {error && <div className={styles.ecgChartPlaceholder} style={{ color: 'red' }}>Error: {error}</div>}
+                {!loading && !error && ecgData.length > 0 && (
+                  <div className={styles.ecgChartWrapper}>
+                    {/* Render based on view mode */}
+                    {(activeTab?.viewMode || viewMode) === 'waveform' && (
+                      <EcgChart
                     dataPoints={ecgData}
                     viewWindowSize={viewWindowSize}
                     startIndex={startIndex}
@@ -636,7 +1039,7 @@ function App() {
                   />
                 )}
                 
-                {viewMode === 'minimap' && (
+                {(activeTab?.viewMode || viewMode) === 'minimap' && (
                   <MinimapView
                     dataPoints={ecgData}
                     predictions={predictions}
@@ -646,7 +1049,7 @@ function App() {
                   />
                 )}
                 
-                {viewMode === 'summary' && (
+                {(activeTab?.viewMode || viewMode) === 'summary' && (
                   <SummaryChartView
                     predictions={predictions}
                     onMinuteClick={(minute) => {
@@ -655,28 +1058,71 @@ function App() {
                       setStartIndex(Math.max(0, Math.min(samplePosition, ecgData.length - viewWindowSize)));
                       setViewMode('waveform');
                       setCurrentZoom('DETAIL');
+                      updateActiveTab({ viewMode: 'waveform', zoom: 'DETAIL', startIndex: samplePosition });
                     }}
                   />
                 )}
-              </div>
-            )}
-            {!loading && !error && ecgData.length === 0 && (
-              <div className={styles.ecgChartPlaceholder}>No ECG data available.</div>
+                  </div>
+                )}
+                {!loading && !error && ecgData.length === 0 && (
+                  <div className={styles.ecgChartPlaceholder}>No ECG data available.</div>
+                )}
+
+                {/* Scrollable timeline control */}
+                <div className={styles.ecgTimelineControl}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0, ecgData.length - viewWindowSize)}
+                    value={startIndex}
+                    onChange={handleSliderChange}
+                    className={styles.timelineSlider}
+                    disabled={ecgData.length <= viewWindowSize}
+                  />
+                  <p>Viewing samples {startIndex} to {Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}</p>
+                </div>
+              </>
             )}
 
-            {/* Scrollable timeline control */}
-            <div className={styles.ecgTimelineControl}>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(0, ecgData.length - viewWindowSize)}
-                value={startIndex}
-                onChange={handleSliderChange}
-                className={styles.timelineSlider}
-                disabled={ecgData.length <= viewWindowSize}
-              />
-              <p>Viewing samples {startIndex} to {Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}</p>
-            </div>
+            {/* Grad-CAM Tab Rendering */}
+            {activeTab && activeTab.type === 'gradcam' && activeTab.gradcamData && (
+              <div className={styles.gradcamViewer}>
+                <div className={styles.gradcamHeader}>
+                  <h3>Grad-CAM Explainability - Minute {activeTab.minute}</h3>
+                  <div className={styles.gradcamMeta}>
+                    <span className={`${styles.prediction} ${activeTab.gradcamData.predictedClass === 'Apnea' ? styles.apnea : styles.normal}`}>
+                      {activeTab.gradcamData.predictedClass}
+                    </span>
+                    <span className={styles.confidence}>
+                      {(activeTab.gradcamData.probability * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className={styles.gradcamImageWrapper}>
+                  <img
+                    src={activeTab.gradcamData.imageUrl}
+                    alt={`Grad-CAM for minute ${activeTab.minute}`}
+                    className={styles.gradcamFullImage}
+                    loading="lazy"
+                  />
+                </div>
+                
+                <div className={styles.gradcamActions}>
+                  <button
+                    className={styles.downloadButton}
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = activeTab.gradcamData!.imageUrl;
+                      link.download = `gradcam_minute_${activeTab.minute}.png`;
+                      link.click();
+                    }}
+                  >
+                    Download Image
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Patient Information Box */}
@@ -703,6 +1149,12 @@ function App() {
                   onClick={() => setPatientInfoTab('minutes')}
                 >
                   Apneic Minutes
+                </button>
+                <button 
+                  className={`${styles.tabButton} ${patientInfoTab === 'physio' ? styles.active : ''}`}
+                  onClick={() => setPatientInfoTab('physio')}
+                >
+                  Physiological Metrics
                 </button>
               </div>
 
@@ -753,13 +1205,6 @@ function App() {
                         <span className={`${styles.statValue} ${styles.statusComplete}`}>✓ Complete</span>
                       </div>
                     </div>
-
-                    <button 
-                      className={styles.rerunButton}
-                      onClick={() => fetchPredictions(activeFile)}
-                    >
-                      Re-run Prediction
-                    </button>
                   </>
                 ) : (
                   <div className={styles.noPredictions}>
@@ -795,39 +1240,167 @@ function App() {
                                 <span className={styles.probabilityLabel}>
                                   {(pred.probability * 100).toFixed(0)}%
                                 </span>
-                                <button 
-                                  className={styles.explainButton}
-                                  onClick={() => handleSegmentClick(pred.minute)}
-                                  disabled={false}
-                                >
-                                  {gradcamQueue.has(pred.minute) ? (
-                                    <>
-                                      <div className={styles.smallSpinner}></div>
-                                      <span>Processing...</span>
-                                    </>
-                                  ) : gradcamCache.has(pred.minute) ? (
-                                    <>👁️ View</>
-                                  ) : (
-                                    <>🔍 Explain</>
-                                  )}
-                                </button>
+                                {gradcamQueue.has(pred.minute) ? (
+                                  <button 
+                                    className={styles.explainButton}
+                                    disabled={true}
+                                  >
+                                    <div className={styles.smallSpinner}></div>
+                                    <span>Processing...</span>
+                                  </button>
+                                ) : gradcamImages.has(getCacheKey(activeFile, pred.minute)) ? (
+                                  <button 
+                                    className={styles.viewButton}
+                                    onClick={() => handleViewGradCAM(pred.minute)}
+                                  >
+                                    👁️ View
+                                  </button>
+                                ) : (
+                                  <button 
+                                    className={styles.explainButton}
+                                    onClick={() => handleSegmentClick(pred.minute)}
+                                  >
+                                    🔍 Explain
+                                  </button>
+                                )}
                               </div>
                             ))}
                         </div>
                         
                         {predictions.filter(p => p.probability >= 0.5).length > 1 && (
-                          <button 
-                            className={styles.generateAllButton}
-                            onClick={handleGenerateAllGradcams}
-                            disabled={loadingGradcam}
-                          >
-                            Generate All Explanations
-                          </button>
+                          generatingAll ? (
+                            <button 
+                              className={styles.cancelButton}
+                              onClick={handleCancelGeneration}
+                            >
+                              ⏹️ Cancel Generation ({generationProgress.current}/{generationProgress.total})
+                            </button>
+                          ) : (
+                            <button 
+                              className={styles.generateAllButton}
+                              onClick={handleGenerateAllGradcams}
+                            >
+                              Generate All Explanations
+                            </button>
+                          )
                         )}
                       </>
                     ) : (
                       <div className={styles.noApneicMinutes}>
                         <p>No apneic minutes detected in this record.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Physiological Metrics Tab */}
+                {patientInfoTab === 'physio' && (
+                  <div className={styles.physioMetrics}>
+                    {ecgStats && Object.keys(ecgStats).length > 0 ? (
+                      <>
+                        {/* R-peak Stats */}
+                        {ecgStats.rpeak && (
+                          <div className={styles.metricSection}>
+                            <h5>R-peak Detection</h5>
+                            <div className={styles.metricRow}>
+                              <span>Total R-peaks:</span>
+                              <span>{ecgStats.rpeak.num_rpeaks}</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>Mean HR:</span>
+                              <span>{ecgStats.rpeak.mean_hr_bpm.toFixed(1)} bpm</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>HR Std Dev:</span>
+                              <span>{ecgStats.rpeak.hr_std_bpm.toFixed(1)} bpm</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>Duration:</span>
+                              <span>{ecgStats.rpeak.recording_duration_min.toFixed(1)} min</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* HRV Time Domain */}
+                        {ecgStats.hrv_time && (
+                          <div className={styles.metricSection}>
+                            <h5>HRV - Time Domain</h5>
+                            <div className={styles.metricRow}>
+                              <span>Mean RRI:</span>
+                              <span>{ecgStats.hrv_time.mean_rri_ms.toFixed(1)} ms</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>SDNN:</span>
+                              <span>{ecgStats.hrv_time.sdnn_ms.toFixed(1)} ms</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>RMSSD:</span>
+                              <span>{ecgStats.hrv_time.rmssd_ms.toFixed(1)} ms</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>pNN50:</span>
+                              <span>{ecgStats.hrv_time.pnn50_percent.toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* HRV Frequency Domain */}
+                        {ecgStats.hrv_freq && (
+                          <div className={styles.metricSection}>
+                            <h5>HRV - Frequency Domain</h5>
+                            <div className={styles.metricRow}>
+                              <span>VLF Power:</span>
+                              <span>{ecgStats.hrv_freq.vlf_power_ms2.toFixed(1)} ms²</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>LF Power:</span>
+                              <span>{ecgStats.hrv_freq.lf_power_ms2.toFixed(1)} ms²</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>HF Power:</span>
+                              <span>{ecgStats.hrv_freq.hf_power_ms2.toFixed(1)} ms²</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>LF/HF Ratio:</span>
+                              <span>{ecgStats.hrv_freq.lf_hf_ratio.toFixed(2)}</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>Total Power:</span>
+                              <span>{ecgStats.hrv_freq.total_power_ms2.toFixed(1)} ms²</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* EDR */}
+                        {ecgStats.edr && (
+                          <div className={styles.metricSection}>
+                            <h5>ECG-Derived Respiration</h5>
+                            <div className={styles.metricRow}>
+                              <span>Respiratory Rate:</span>
+                              <span>{ecgStats.edr.resp_rate_bpm.toFixed(1)} breaths/min</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>EDR Range:</span>
+                              <span>{ecgStats.edr.edr_amplitude_range.toFixed(3)}</span>
+                            </div>
+                            <div className={styles.metricRow}>
+                              <span>EDR Variability:</span>
+                              <span>{ecgStats.edr.edr_variability.toFixed(3)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className={styles.noMetrics}>
+                        <p>No physiological metrics available yet.</p>
+                        {!predicting && predictions.length === 0 && (
+                          <button 
+                            className={styles.runButton}
+                            onClick={() => fetchPredictions(activeFile)}
+                          >
+                            Run Analysis
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -878,79 +1451,6 @@ function App() {
         </div>
       </div>
 
-      {/* Grad-CAM Visualization Modal */}
-      {(gradcamData || (loadingGradcam && selectedMinute !== null)) && (
-        <div className={styles.modalOverlay} onClick={() => { setGradcamData(null); setLoadingGradcam(false); }}>
-          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>Grad-CAM Explainability - Minute {gradcamData?.minute || selectedMinute}</h2>
-              <button 
-                className={styles.modalClose}
-                onClick={() => { setGradcamData(null); setLoadingGradcam(false); }}
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className={styles.modalBody}>
-              {loadingGradcam && !gradcamData ? (
-                <div className={styles.loadingIndicator}>
-                  <div className={styles.spinner}></div>
-                  <p>Generating Grad-CAM explanation for Minute {selectedMinute}...</p>
-                </div>
-              ) : gradcamData ? (
-                <>
-                  <div className={styles.gradcamInfo}>
-                    <div className={styles.infoItem}>
-                      <span className={styles.infoLabel}>Prediction:</span>
-                      <span className={`${styles.infoValue} ${gradcamData.predictedClass === 'Apnea' ? styles.apnea : styles.normal}`}>
-                        {gradcamData.predictedClass}
-                      </span>
-                    </div>
-                    <div className={styles.infoItem}>
-                      <span className={styles.infoLabel}>Confidence:</span>
-                      <span className={styles.infoValue}>
-                        {(gradcamData.probability * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className={styles.gradcamImageContainer}>
-                    <img 
-                      src={gradcamData.imageUrl} 
-                      alt={`Grad-CAM for minute ${gradcamData.minute}`}
-                      className={styles.gradcamImage}
-                    />
-                  </div>
-                  
-                  <div className={styles.gradcamExplanation}>
-                    <p>
-                      <strong>What am I seeing?</strong> This Grad-CAM visualization highlights the regions 
-                      of the ECG signal that were most important for the model's prediction. 
-                      Warmer colors (red/yellow) indicate areas the model focused on when making its decision.
-                    </p>
-                  </div>
-
-                  <div className={styles.modalActions}>
-                    <button 
-                      className={styles.downloadButton}
-                      onClick={() => {
-                        const link = document.createElement('a');
-                        link.href = gradcamData.imageUrl;
-                        link.download = `gradcam_minute_${gradcamData.minute}.png`;
-                        link.click();
-                      }}
-                    >
-                      Download Image
-                    </button>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Toast Notifications */}
       <div className={styles.notificationContainer}>
         {gradcamNotifications.map(notif => (
@@ -958,7 +1458,7 @@ function App() {
             <span>✓ Grad-CAM for Minute {notif.minute} ready</span>
             <button 
               className={styles.toastButton}
-              onClick={() => handleSegmentClick(notif.minute)}
+              onClick={() => handleViewGradCAM(notif.minute)}
             >
               View
             </button>

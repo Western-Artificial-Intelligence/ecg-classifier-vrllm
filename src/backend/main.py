@@ -2,20 +2,27 @@ import os
 import struct
 import base64
 import io
+import json
+import time
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import List, Dict, Optional
 import numpy as np
 import tensorflow as tf
 
 # Import project modules for prediction and Grad-CAM
 from src import config
-from src.utilities.preprocess import preprocess
+from src.utilities.preprocess import preprocess_with_cache
 from src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
 
 # Define the base directory for ECG data relative to the project root
 # This assumes the backend is run from the project root or similar.
 ECG_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data/raw/ecgdata")
+
+# Define Grad-CAM images directory
+GRADCAM_IMAGES_DIR = os.path.join(config.PROCESSED_DATA_DIR, "gradcam_images")
+os.makedirs(GRADCAM_IMAGES_DIR, exist_ok=True)
 
 app = FastAPI()
 
@@ -48,6 +55,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for serving Grad-CAM images
+# Custom StaticFiles class to add cache headers
+class CachedStaticFiles(StaticFiles):
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            async def send_wrapper(message):
+                if message["type"] == "http.response.start":
+                    headers = dict(message.get("headers", []))
+                    headers[b"cache-control"] = b"public, max-age=31536000, immutable"
+                    message["headers"] = list(headers.items())
+                await send(message)
+            await super().__call__(scope, receive, send_wrapper)
+        else:
+            await super().__call__(scope, receive, send)
+
+app.mount("/gradcam_images", CachedStaticFiles(directory=GRADCAM_IMAGES_DIR), name="gradcam_images")
 
 # Helper function to read .dat files
 # Assuming 16-bit integer samples
@@ -98,13 +122,14 @@ async def predict_apnea(filename: str):
         # Load model
         model = get_model()
         
-        # Preprocess the record
+        # Preprocess the record (with caching for performance)
         full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
-        out = preprocess(full_record_path)
+        out = preprocess_with_cache(full_record_path)
         
         tensors = out["tensors"]
         minutes = out["minutes"]
         skipped = out.get("skipped", [])
+        stats = out.get("stats", {})  # NEW - extract physiological stats
         
         if tensors.shape[0] == 0:
             return {
@@ -130,7 +155,8 @@ async def predict_apnea(filename: str):
         return {
             "filename": filename,
             "predictions": predictions,
-            "skipped": skipped
+            "skipped": skipped,
+            "stats": stats  # NEW - include physiological stats in response
         }
         
     except Exception as e:
@@ -142,16 +168,21 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
     """
     Generates Grad-CAM visualization for a specific minute of a record.
     If minute is not specified, generates for the most confident prediction.
+    Saves images to disk instead of returning base64.
     """
     record_name = filename.replace(".dat", "")
+    
+    # Create patient directory
+    patient_dir = os.path.join(GRADCAM_IMAGES_DIR, record_name)
+    os.makedirs(patient_dir, exist_ok=True)
     
     try:
         # Load model
         model = get_model()
         
-        # Preprocess the record
+        # Preprocess the record (with caching - reuses results from predict endpoint)
         full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
-        out = preprocess(full_record_path)
+        out = preprocess_with_cache(full_record_path)
         
         tensors = out["tensors"]
         minutes = out["minutes"]
@@ -181,6 +212,23 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
         class_label = "Apnea" if predicted_class == 1 else "Non-Apnea"
         confidence = float(prediction_prob[predicted_class])
         
+        # Check if image already exists on disk
+        image_path = os.path.join(patient_dir, f"{target_minute}.png")
+        metadata_path = os.path.join(patient_dir, f"{target_minute}.json")
+        
+        if os.path.exists(image_path) and os.path.exists(metadata_path):
+            # Load existing metadata
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            return {
+                "filename": filename,
+                "minute": int(target_minute),
+                "image_url": f"http://localhost:8000/gradcam_images/{record_name}/{target_minute}.png",
+                "probability": metadata["probability"],
+                "predicted_class": metadata["predicted_class"]
+            }
+        
         # Generate Grad-CAM heatmap
         input_tensor = np.expand_dims(tensors[target_idx], axis=0)
         
@@ -200,31 +248,25 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
         if raw_signal is None:
             raise HTTPException(status_code=500, detail="Raw signal segment not available")
         
-        # Generate visualization and convert to base64
+        # Generate visualization and save to disk
         import matplotlib
         matplotlib.use('Agg')  # Use non-GUI backend
-        import matplotlib.pyplot as plt
-        import tempfile
         
-        # Save to temporary file first, then read for base64 encoding
-        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-            temp_path = tmp_file.name
+        save_gradcam_visualization(raw_signal, heatmap, image_path, alpha=0.4)
         
-        try:
-            save_gradcam_visualization(raw_signal, heatmap, temp_path, alpha=0.4)
-            
-            # Read the file and convert to base64
-            with open(temp_path, 'rb') as f:
-                img_base64 = base64.b64encode(f.read()).decode('utf-8')
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+        # Save metadata
+        metadata = {
+            "probability": float(confidence),
+            "predicted_class": class_label,
+            "timestamp": time.time()
+        }
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f)
         
         return {
             "filename": filename,
             "minute": int(target_minute),
-            "image_url": f"data:image/png;base64,{img_base64}",
+            "image_url": f"http://localhost:8000/gradcam_images/{record_name}/{target_minute}.png",
             "probability": confidence,
             "predicted_class": class_label
         }
@@ -239,16 +281,21 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
 async def generate_gradcam_batch(filename: str, count: int = Query(default=3)):
     """
     Generates Grad-CAM visualizations for the top N most confident predictions.
+    Saves images to disk instead of returning base64.
     """
     record_name = filename.replace(".dat", "")
+    
+    # Create patient directory
+    patient_dir = os.path.join(GRADCAM_IMAGES_DIR, record_name)
+    os.makedirs(patient_dir, exist_ok=True)
     
     try:
         # Load model
         model = get_model()
         
-        # Preprocess the record
+        # Preprocess the record (with caching - reuses results from predict endpoint)
         full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
-        out = preprocess(full_record_path)
+        out = preprocess_with_cache(full_record_path)
         
         tensors = out["tensors"]
         minutes = out["minutes"]
@@ -276,6 +323,23 @@ async def generate_gradcam_batch(filename: str, count: int = Query(default=3)):
             class_label = "Apnea" if predicted_class == 1 else "Non-Apnea"
             confidence = float(prediction_prob[predicted_class])
             
+            # Check if image already exists
+            image_path = os.path.join(patient_dir, f"{target_minute}.png")
+            metadata_path = os.path.join(patient_dir, f"{target_minute}.json")
+            
+            if os.path.exists(image_path) and os.path.exists(metadata_path):
+                # Load existing metadata
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                
+                results.append({
+                    "minute": int(target_minute),
+                    "image_url": f"http://localhost:8000/gradcam_images/{record_name}/{target_minute}.png",
+                    "probability": metadata["probability"],
+                    "predicted_class": metadata["predicted_class"]
+                })
+                continue
+            
             # Generate Grad-CAM
             input_tensor = np.expand_dims(tensors[idx], axis=0)
             
@@ -292,22 +356,21 @@ async def generate_gradcam_batch(filename: str, count: int = Query(default=3)):
             if raw_signal is None:
                 continue
             
-            # Generate visualization using temp file
-            import tempfile
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                temp_path = tmp_file.name
+            # Save visualization to disk
+            save_gradcam_visualization(raw_signal, heatmap, image_path, alpha=0.4)
             
-            try:
-                save_gradcam_visualization(raw_signal, heatmap, temp_path, alpha=0.4)
-                with open(temp_path, 'rb') as f:
-                    img_base64 = base64.b64encode(f.read()).decode('utf-8')
-            finally:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
+            # Save metadata
+            metadata = {
+                "probability": float(confidence),
+                "predicted_class": class_label,
+                "timestamp": time.time()
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f)
             
             results.append({
                 "minute": int(target_minute),
-                "image_url": f"data:image/png;base64,{img_base64}",
+                "image_url": f"http://localhost:8000/gradcam_images/{record_name}/{target_minute}.png",
                 "probability": confidence,
                 "predicted_class": class_label
             })
@@ -318,6 +381,44 @@ async def generate_gradcam_batch(filename: str, count: int = Query(default=3)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch Grad-CAM generation error: {str(e)}")
+
+
+@app.get("/api/gradcam/list/{filename}")
+async def list_gradcam_images(filename: str):
+    """
+    Returns list of all available Grad-CAM images for a recording.
+    Fast operation - just reads directory and metadata files.
+    """
+    record_name = filename.replace(".dat", "")
+    patient_dir = os.path.join(GRADCAM_IMAGES_DIR, record_name)
+    
+    if not os.path.exists(patient_dir):
+        return {"images": []}
+    
+    images = []
+    for file in os.listdir(patient_dir):
+        if file.endswith('.png'):
+            minute = int(file.replace('.png', ''))
+            metadata_file = os.path.join(patient_dir, f"{minute}.json")
+            
+            # Load metadata
+            if os.path.exists(metadata_file):
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+            else:
+                metadata = {"probability": 0.0, "predicted_class": "Unknown"}
+            
+            images.append({
+                "minute": minute,
+                "image_url": f"http://localhost:8000/gradcam_images/{record_name}/{minute}.png",
+                "probability": metadata.get("probability", 0.0),
+                "predicted_class": metadata.get("predicted_class", "Unknown")
+            })
+    
+    # Sort by minute
+    images.sort(key=lambda x: x["minute"])
+    
+    return {"images": images}
 
 
 @app.get("/api/status")

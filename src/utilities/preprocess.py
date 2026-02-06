@@ -6,9 +6,13 @@ steps used for the full dataset but is designed for on-demand use.
 Functions:
     - _normalize(): Helper function for min-max normalization.
     - preprocess(): Main function to preprocess a single ECG record.
+    - save_preprocessed_cache(): Save preprocessing results to disk.
+    - load_preprocessed_cache(): Load preprocessing results from disk.
+    - preprocess_with_cache(): Wrapper that uses caching for better performance.
 """
 
 import os
+import time
 
 # Scientific computing and data analysis libraries
 import numpy as np
@@ -20,6 +24,14 @@ from scipy.interpolate import splev, splrep
 
 # Import project-specific configuration
 from src import config
+
+# Import HRV and EDR computation utilities
+from src.utilities.hrv_edr import (
+    compute_time_domain_hrv,
+    compute_frequency_domain_hrv,
+    compute_edr_metrics,
+    compute_rpeak_stats,
+)
 
 
 def _normalize(arr: np.ndarray) -> np.ndarray:
@@ -192,6 +204,11 @@ def preprocess(record_path_or_name: str) -> dict:
     X_raw = []
     minutes = []
     skipped = []
+    
+    # Lists to collect data for stats computation
+    all_rpeaks = []
+    all_rri = []
+    all_amplitudes = []
 
     for j in range(len(labels)):
         if j < config.BEFORE or \
@@ -248,6 +265,13 @@ def preprocess(record_path_or_name: str) -> dict:
         X_features.append(((rri_tm, rri_signal), (ampl_tm, ampl_signal)))
         X_raw.append(signal_segment) # Store the raw segment
         minutes.append(j)
+        
+        # Collect data for stats computation
+        # Note: rri_signal has length (num_rpeaks - 1), ampl_signal has length num_rpeaks
+        # We align them by taking amplitudes at positions 1: to match the RRI intervals
+        all_rpeaks.extend(rpeaks.tolist())
+        all_rri.extend(rri_signal.tolist())
+        all_amplitudes.extend(ampl_signal[1:].tolist())  # Skip first amplitude to align with RRI
 
     if not X_features:
         seq_len = int((config.BEFORE + 1 + config.AFTER) * 60 * config.IR)
@@ -268,10 +292,137 @@ def preprocess(record_path_or_name: str) -> dict:
 
     x_arr = np.array(x_list, dtype="float32").transpose((0, 2, 1))
 
+    # Compute physiological stats if we have sufficient data
+    stats = {}
+    if len(all_rri) > 10 and len(all_amplitudes) > 10:  # Minimum data requirement
+        try:
+            stats = {
+                "hrv_time": compute_time_domain_hrv(np.array(all_rri)),
+                "hrv_freq": compute_frequency_domain_hrv(np.array(all_rri)),
+                "edr": compute_edr_metrics(
+                    np.array(all_amplitudes), 
+                    np.array(all_rri), 
+                    fs=config.FS
+                ),
+                "rpeak": compute_rpeak_stats(
+                    np.array(all_rpeaks), 
+                    len(signals), 
+                    fs=config.FS
+                ),
+            }
+        except Exception as e:
+            print(f"Warning: Could not compute stats for {base_record_name}: {e}")
+            stats = {}
+
     return {
         "record": base_record_name,
         "tensors": x_arr,
         "raw_segments": X_raw, # Return list of raw numpy arrays
         "minutes": minutes,
         "skipped": skipped,
+        "stats": stats,  # NEW - physiological statistics
     }
+
+
+def save_preprocessed_cache(record_name: str, preprocessed_data: dict) -> None:
+    """
+    Save preprocessed ECG data to disk cache.
+    
+    Args:
+        record_name: Base name of the record (e.g., 'a01')
+        preprocessed_data: Dictionary returned by preprocess() function
+    """
+    cache_dir = os.path.join(config.PROCESSED_DATA_DIR, "cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    cache_file = os.path.join(cache_dir, f"{record_name}_preprocessed.npz")
+    
+    # Prepare data for saving
+    # Convert raw_segments list to a single array for easier storage
+    raw_segments_array = np.array(preprocessed_data["raw_segments"], dtype=object)
+    
+    # Save with compression
+    np.savez_compressed(
+        cache_file,
+        record=record_name,
+        tensors=preprocessed_data["tensors"],
+        raw_segments=raw_segments_array,
+        minutes=np.array(preprocessed_data["minutes"]),
+        skipped=np.array(preprocessed_data["skipped"]),
+        stats=preprocessed_data.get("stats", {}),
+        timestamp=time.time()
+    )
+    
+    print(f"Cached preprocessing results for {record_name} at {cache_file}")
+
+
+def load_preprocessed_cache(record_name: str) -> dict:
+    """
+    Load preprocessed ECG data from disk cache.
+    
+    Args:
+        record_name: Base name of the record (e.g., 'a01')
+        
+    Returns:
+        Dictionary with preprocessed data, or None if cache doesn't exist
+    """
+    cache_dir = os.path.join(config.PROCESSED_DATA_DIR, "cache")
+    cache_file = os.path.join(cache_dir, f"{record_name}_preprocessed.npz")
+    
+    if not os.path.exists(cache_file):
+        return None
+    
+    try:
+        data = np.load(cache_file, allow_pickle=True)
+        
+        # Reconstruct the dictionary
+        result = {
+            "record": str(data["record"]),
+            "tensors": data["tensors"],
+            "raw_segments": list(data["raw_segments"]),
+            "minutes": list(data["minutes"]),
+            "skipped": list(data["skipped"]),
+            "stats": data["stats"].item() if "stats" in data else {},
+        }
+        
+        print(f"Loaded cached preprocessing results for {record_name}")
+        return result
+        
+    except Exception as e:
+        print(f"Error loading cache for {record_name}: {e}")
+        return None
+
+
+def preprocess_with_cache(record_path_or_name: str, force_recompute: bool = False) -> dict:
+    """
+    Preprocess a single ECG record with disk caching for better performance.
+    
+    This function checks if preprocessing results are cached. If they exist and are
+    valid, it loads them from disk. Otherwise, it runs preprocessing and caches the results.
+    
+    Args:
+        record_path_or_name: The path or base name of the ECG record to preprocess.
+        force_recompute: If True, bypass cache and recompute preprocessing.
+        
+    Returns:
+        dict: Same as preprocess() function - contains tensors, raw_segments, minutes, etc.
+    """
+    record_path_or_name = str(record_path_or_name)
+    
+    # Extract the base name of the record
+    base_record_name = os.path.splitext(os.path.basename(record_path_or_name))[0]
+    
+    # Try to load from cache first (unless forced to recompute)
+    if not force_recompute:
+        cached_data = load_preprocessed_cache(base_record_name)
+        if cached_data is not None:
+            return cached_data
+    
+    # Cache miss or forced recompute - run preprocessing
+    print(f"Running preprocessing for {base_record_name}...")
+    preprocessed_data = preprocess(record_path_or_name)
+    
+    # Save to cache for future use
+    save_preprocessed_cache(base_record_name, preprocessed_data)
+    
+    return preprocessed_data

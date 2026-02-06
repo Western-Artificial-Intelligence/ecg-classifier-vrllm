@@ -1145,3 +1145,278 @@
   width: 100%;
   height: 100%;
 }
+
+/* Physiological Metrics Styles */
+.physioMetrics {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 10px 0;
+}
+
+.metricSection {
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.metricSection h5 {
+  margin: 0 0 10px 0;
+  font-size: 0.95em;
+  color: #2196f3;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+  font-weight: 600;
+}
+
+.metricRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 0.85em;
+}
+
+.metricRow span:first-child {
+  color: #666;
+  font-weight: 400;
+}
+
+.metricRow span:last-child {
+  font-weight: 500;
+  color: #333;
+}
+
+.noMetrics {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+}
+
+.noMetrics p {
+  margin: 0 0 15px 0;
+}
+
+/* Tab System */
+.tabBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #4a5568;
+  background: #1a202c;
+  padding: 0;
+  margin: -15px -15px 0 -15px;
+  border-radius: 8px 8px 0 0;
+  gap: 4px;
+}
+
+.tabBarActions {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+.tabList {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 0 12px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #2d3748;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  position: relative;
+  min-width: 120px;
+}
+
+.tab:hover {
+  background: #374151;
+  border-color: #4a5568;
+}
+
+.tab.active {
+  background: #1e293b;
+  border-color: #4a5568;
+  border-bottom-color: #1e293b;
+}
+
+.tabIcon {
+  font-size: 14px;
+}
+
+.ecgIcon {
+  color: #e53e3e;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.tabTitle {
+  font-size: 13px;
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.tabClose {
+  background: transparent;
+  border: none;
+  color: #cbd5e0;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.tabClose:hover {
+  background: #e53e3e;
+  color: white;
+}
+
+/* Grad-CAM Viewer */
+.gradcamViewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  background: #1e293b;
+  overflow: auto;
+}
+
+.gradcamHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #4a5568;
+}
+
+.gradcamHeader h3 {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 18px;
+}
+
+.gradcamMeta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.gradcamMeta .prediction {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.gradcamMeta .prediction.apnea {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.gradcamMeta .prediction.normal {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.gradcamMeta .confidence {
+  color: #cbd5e0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.gradcamImageWrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  min-height: 400px;
+}
+
+.gradcamFullImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.gradcamActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.downloadButton {
+  padding: 10px 20px;
+  background: #4299e1;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.downloadButton:hover {
+  background: #3182ce;
+}
+
+/* Cancel Button */
+.cancelButton {
+  padding: 12px 20px;
+  background: #e53e3e;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.cancelButton:hover {
+  background: #c53030;
+}
+
+/* View Button */
+.viewButton {
+  padding: 8px 16px;
+  background: #4299e1;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 13px;
+}
+
+.viewButton:hover {
+  background: #3182ce;
+}
