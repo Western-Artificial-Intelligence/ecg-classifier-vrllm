@@ -1,0 +1,85 @@
+/* Stats Section */
+.stats {
+  position: relative;
+  z-index: 1;
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-top: 1px solid rgba(226, 232, 240, 0.6);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.statsContainer {
+  max-width: 1280px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.dataset {
+  font-size: 1rem;
+  color: #64748b;
+  margin: -1rem 0 0;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.statCard {
+  padding: 2rem;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  border-color: #c7d2fe;
+}
+
+.statValue {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+
+.statLabel {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .statValue {
+    font-size: 2.5rem;
+  }
+}
+

@@ -1,3 +1,6 @@
+/* Google Fonts Import - Inter + Playfair Display (Serif) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
+
 /* Global Styles and CSS Reset - Tellaia Light Theme */
 
 * {
@@ -67,6 +70,3 @@ a {
   outline: 2px solid #3B82F6;
   outline-offset: 2px;
 }
-
-/* Google Fonts Import - Inter + Playfair Display (Serif) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
