@@ -353,11 +353,23 @@ const PremiumLandingPage: React.FC = () => {
 
       {/* CTA Section */}
       <section className="ss-section">
-        <div className="glass-card" style={{ textAlign: 'center', padding: '5rem 3rem' }}>
-          <h2 className="ss-section-title" style={{ marginBottom: '1rem' }}>
+        <div className="glass-card" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center', 
+          padding: '5rem 3rem'
+        }}>
+          <h2 className="ss-section-title" style={{ 
+            marginBottom: '1rem'
+          }}>
             Ready to Transform Sleep Apnea Screening?
           </h2>
-          <p className="ss-section-description" style={{ marginBottom: '2.5rem', fontSize: '1.125rem' }}>
+          <p className="ss-section-description" style={{ 
+            marginBottom: '2.5rem', 
+            fontSize: '1.125rem'
+          }}>
             Start analyzing ECG data with AI-powered insights today.
           </p>
           <button onClick={() => navigate('/app')} className="cta-orange" style={{ fontSize: '1.0625rem', padding: '1rem 2rem' }}>

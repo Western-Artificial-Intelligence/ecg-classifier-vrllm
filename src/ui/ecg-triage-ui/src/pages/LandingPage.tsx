@@ -1,122 +1,126 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styles from '../styles/LandingPage.module.css';
+import '../styles/squarespace-theme.css';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-
-  const handleGetStarted = () => {
-    navigate('/dashboard');
-  };
+  const [showDemoModal, setShowDemoModal] = useState(false);
 
   return (
-    <div className={styles.landingContainer}>
-      {/* Navigation Header */}
-      <nav className={styles.navbar}>
-        <div className={styles.navContent}>
-          <div className={styles.logo}>
-            <div className={styles.logoIcon}>
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 16L8 16L11 8L15 24L19 12L22 16L28 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
-              </svg>
-            </div>
-            <span className={styles.logoText}>NeuralApnea Triage</span>
-          </div>
-          <div className={styles.navLinks}>
-            <a href="#about" className={styles.navLink}>About</a>
-            <a href="#features" className={styles.navLink}>Features</a>
-            <a href="#how-it-works" className={styles.navLink}>How It Works</a>
-            <a href="#research" className={styles.navLink}>Research</a>
-            <button onClick={handleGetStarted} className={styles.navButton}>Launch App</button>
+    <div className="squarespace-scope">
+      {/* Navigation */}
+      <nav className="ss-nav">
+        <div className="ss-nav-content">
+            <a href="/" className="ss-logo">
+            <span>NeuralApnea Triage</span>
+          </a>
+          <div className="ss-nav-links">
+            <a href="#about" className="ss-nav-link">About</a>
+            <a href="#features" className="ss-nav-link">Features</a>
+            <a href="#how-it-works" className="ss-nav-link">How It Works</a>
+            <a href="#paper" className="ss-nav-link">Paper</a>
+            <button onClick={() => navigate('/app')} className="cta-orange">
+              Get started
+            </button>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className={styles.heroSection}>
-        <div className={styles.heroContent}>
-          <div className={styles.badge}>
-            <span className={styles.badgeDot}></span>
-            <span>CUCAI Competition Demo</span>
+      <section className="ss-hero">
+        <div className="ss-hero-content">
+          <div className="ss-badge">
+            AI-Powered Sleep Apnea Screening
           </div>
-          <h1 className={styles.heroTitle}>
-            Sleep Apnea Screening
-            <br />
-            <span className={styles.titleGradient}>Reimagined with AI</span>
+          
+          <h1 className="ss-hero-title">
+            Transform Sleep Apnea Detection with <span className="gradient-text">AI & ECG</span>
           </h1>
-          <p className={styles.heroDescription}>
-            A demonstration triage and screening tool built for the CUCAI competition, showcasing 
-            the potential of AI in medical applications. This prototype analyzes overnight ECG 
-            recordings to identify potential sleep apnea events—demonstrating how machine learning 
-            could help clinicians prioritize cases in real-world settings.
+          
+          <p className="ss-hero-description">
+            NeuralApnea Triage uses advanced machine learning to analyze overnight ECG recordings, 
+            providing fast, accessible screening for sleep apnea—helping prioritize patients who 
+            need polysomnography and reducing diagnostic delays.
           </p>
-          <div className={styles.heroActions}>
-            <button onClick={handleGetStarted} className={styles.primaryButton}>
-              Start Analysis
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M4 10h12M12 6l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
+          
+          <div className="ss-hero-actions">
+            <button onClick={() => navigate('/app')} className="cta-orange">
+              Get started
             </button>
-            <button className={styles.secondaryButton}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M8 5v10l8-5z"/>
-              </svg>
-              Watch Demo
+            <button onClick={() => setShowDemoModal(true)} className="btn-secondary">
+              Watch demo
             </button>
-          </div>
-          <div className={styles.trustBadges}>
-            <div className={styles.trustItem}>
-              <span className={styles.trustIcon}>✓</span>
-              <span>Clinical-Grade Analysis</span>
-            </div>
-            <div className={styles.trustItem}>
-              <span className={styles.trustIcon}>✓</span>
-              <span>Explainable AI</span>
-            </div>
-            <div className={styles.trustItem}>
-              <span className={styles.trustIcon}>✓</span>
-              <span>HIPAA-Ready Architecture</span>
-            </div>
           </div>
         </div>
-        <div className={styles.heroVisual}>
-          <div className={styles.visualCard}>
-            <div className={styles.cardHeader}>
-              <div className={styles.cardTitle}>ECG Analysis</div>
-              <div className={styles.cardStatus}>
-                <span className={styles.statusDot}></span>
+
+        <div className="ss-hero-visual">
+          <div className="glass-card">
+            <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#000', margin: 0 }}>ECG Analysis</h3>
+              <div style={{ 
+                padding: '0.375rem 0.75rem', 
+                background: 'rgba(0, 0, 0, 0.05)', 
+                borderRadius: '4px',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                color: 'rgba(0, 0, 0, 0.7)', 
+                fontSize: '0.8125rem', 
+                fontWeight: '500'
+              }}>
                 Processing
               </div>
             </div>
-            <div className={styles.mockChart}>
-              <svg width="100%" height="120" viewBox="0 0 400 120" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="rgba(99, 102, 241, 0.4)" />
-                    <stop offset="100%" stopColor="rgba(99, 102, 241, 0.0)" />
-                  </linearGradient>
-                </defs>
-                <path 
-                  d="M0,60 L20,58 L40,55 L45,45 L50,20 L55,45 L60,58 L80,60 L100,58 L120,55 L125,45 L130,20 L135,45 L140,58 L160,60 L180,58 L200,62 L205,52 L210,25 L215,52 L220,62 L240,60 L260,58 L280,55 L285,45 L290,20 L295,45 L300,58 L320,60 L340,58 L360,60 L380,58 L400,60" 
-                  stroke="#6366f1" 
-                  strokeWidth="2" 
-                  fill="url(#chartGradient)"
-                />
-              </svg>
+            
+            <div style={{ 
+              padding: '1.5rem', 
+              background: 'rgba(0, 0, 0, 0.02)', 
+              borderRadius: '8px', 
+              marginBottom: '1.5rem',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+              height: '120px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'rgba(0, 0, 0, 0.3)',
+              fontSize: '0.875rem',
+              fontWeight: '500'
+            }}>
+              ECG Waveform Visualization
             </div>
-            <div className={styles.cardMetrics}>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Risk Level</span>
-                <span className={styles.metricValue}>High</span>
+            
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(3, 1fr)', 
+              gap: '1rem' 
+            }}>
+              <div style={{ 
+                padding: '1rem', 
+                background: 'rgba(0, 0, 0, 0.03)', 
+                borderRadius: '6px',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.6875rem', color: 'rgba(0, 0, 0, 0.6)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Risk Level</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000' }}>High</div>
               </div>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Confidence</span>
-                <span className={styles.metricValue}>94%</span>
+              <div style={{ 
+                padding: '1rem', 
+                background: 'rgba(0, 0, 0, 0.03)', 
+                borderRadius: '6px',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.6875rem', color: 'rgba(0, 0, 0, 0.6)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confidence</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000' }}>94%</div>
               </div>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Segments</span>
-                <span className={styles.metricValue}>12</span>
+              <div style={{ 
+                padding: '1rem', 
+                background: 'rgba(0, 0, 0, 0.03)', 
+                borderRadius: '6px',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.6875rem', color: 'rgba(0, 0, 0, 0.6)', marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Events</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '600', color: '#000' }}>12</div>
               </div>
             </div>
           </div>
@@ -124,333 +128,326 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Stats Section */}
-      <section className={styles.statsSection}>
-        <div className={styles.statsGrid}>
-          <div className={styles.statCard}>
-            <div className={styles.statNumber}>80%</div>
-            <div className={styles.statLabel}>Sleep Apnea Cases Undiagnosed</div>
+      <section className="ss-section">
+        <div className="ss-stats-grid">
+          <div className="ss-stat-card glass-card">
+            <div className="ss-stat-number">80%</div>
+            <div className="ss-stat-label">Sleep Apnea Cases Undiagnosed</div>
           </div>
-          <div className={styles.statCard}>
-            <div className={styles.statNumber}>8-30 mo</div>
-            <div className={styles.statLabel}>Wait Time for PSG in Canada</div>
+          <div className="ss-stat-card glass-card">
+            <div className="ss-stat-number">8-30mo</div>
+            <div className="ss-stat-label">Wait Time for PSG in Canada</div>
           </div>
-          <div className={styles.statCard}>
-            <div className={styles.statNumber}>$1-10K</div>
-            <div className={styles.statLabel}>Cost Per Polysomnography Study</div>
+          <div className="ss-stat-card glass-card">
+            <div className="ss-stat-number">$1-10K</div>
+            <div className="ss-stat-label">Cost Per Polysomnography Study</div>
           </div>
         </div>
       </section>
 
       {/* About Section */}
-      <section id="about" className={styles.aboutSection}>
-        <div className={styles.sectionContent}>
-          <div className={styles.sectionBadge}>About the Tool</div>
-          <h2 className={styles.sectionTitle}>Clinical Intelligence for Sleep Apnea Detection</h2>
-          <p className={styles.sectionDescription}>
-            Sleep apnea affects hundreds of millions globally, yet approximately 80% of cases remain 
-            undiagnosed. Traditional diagnosis through polysomnography is expensive ($1,000–$10,000 per study), 
-            time-intensive, and suffers from severe accessibility issues—with wait times ranging from 8 to 30 months 
-            in Canada alone. Our AI-powered screening tool analyzes single-lead ECG data to flag high-risk patients, 
-            helping prioritize limited diagnostic resources and reduce delays in care.
-          </p>
-          <div className={styles.featureGrid}>
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" stroke="currentColor" strokeWidth="2" fill="none"/>
-                </svg>
-              </div>
-              <h3 className={styles.featureTitle}>Demo Tool - Not a Medical Device</h3>
-              <p className={styles.featureDescription}>
-                This is a demonstration triage/screening tool built for the CUCAI competition to 
-                showcase medical AI potential. Not intended for clinical diagnosis. It demonstrates 
-                how ECG-based screening could flag risk and suggest further evaluation via polysomnography.
-              </p>
-            </div>
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-              </div>
-              <h3 className={styles.featureTitle}>Explainable AI</h3>
-              <p className={styles.featureDescription}>
-                Every prediction is backed by interpretable physiological signals—heart rate variability (HRV) 
-                metrics, sample entropy changes, and attention visualizations—so clinicians understand the "why" 
-                behind each risk assessment. Grad-CAM highlights the ECG regions driving predictions.
-              </p>
-            </div>
-            <div className={styles.featureCard}>
-              <div className={styles.featureIcon}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" strokeWidth="2" fill="none"/>
-                </svg>
-              </div>
-              <h3 className={styles.featureTitle}>Software-Only, ECG-Based Screening</h3>
-              <p className={styles.featureDescription}>
-                Works with overnight single-lead ECG recordings already collected during routine cardiac monitoring. 
-                No additional sensors, specialized staff, or new clinical workflows required—unlocking diagnostic 
-                information from existing data archives without new collection costs.
-              </p>
-            </div>
+      <section id="about" className="ss-section">
+        <div className="ss-section-badge">About the Platform</div>
+        <h2 className="ss-section-title">AI-Powered Triage for Better Access to Care</h2>
+        <p className="ss-section-description">
+          Sleep apnea affects hundreds of millions globally, yet approximately 80% of cases remain 
+          undiagnosed. Traditional diagnosis through polysomnography (PSG) is expensive, time-intensive, 
+          and suffers from severe accessibility issues. NeuralApnea Triage leverages ECG-based machine 
+          learning to screen patients efficiently, helping healthcare providers prioritize limited 
+          diagnostic resources and reduce care delays.
+        </p>
+
+        <div className="ss-feature-grid">
+          <div className="glass-card">
+            <div className="ss-feature-icon">Security</div>
+            <h3 className="ss-feature-title">Clinical Screening Tool</h3>
+            <p className="ss-feature-description">
+              A demonstration platform showcasing AI-powered triage for sleep apnea. Analyzes ECG patterns 
+              to identify high-risk patients who should be prioritized for polysomnography evaluation.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Insight</div>
+            <h3 className="ss-feature-title">Explainable AI</h3>
+            <p className="ss-feature-description">
+              Every prediction includes interpretable biomarkers—HRV metrics, sample entropy, attention 
+              visualizations—so clinicians understand the physiological signals driving each risk assessment.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Speed</div>
+            <h3 className="ss-feature-title">ECG-Based Screening</h3>
+            <p className="ss-feature-description">
+              Works with overnight single-lead ECG data already collected during routine monitoring. 
+              No additional sensors or specialized workflows required—unlocking insights from existing data.
+            </p>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className={styles.featuresSection}>
-        <div className={styles.sectionContent}>
-          <div className={styles.sectionBadge}>Core Features</div>
-          <h2 className={styles.sectionTitle}>Everything You Need for Clinical Screening</h2>
-          
-          <div className={styles.featureShowcase}>
-            <div className={styles.showcaseItem}>
-              <div className={styles.showcaseNumber}>01</div>
-              <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>AI Architecture</h3>
-                <p className={styles.showcaseDescription}>
-                  A hybrid CNN-Transformer model captures both local morphological features and long-range 
-                  temporal dependencies. The CNN extracts R-wave dynamics and beat-shape patterns, while the 
-                  Transformer encoder uses multi-head self-attention to model autonomic fluctuations across 
-                  multi-minute windows—detecting gradual apnea-related changes traditional methods miss.
-                </p>
-              </div>
-            </div>
-            <div className={styles.showcaseItem}>
-              <div className={styles.showcaseNumber}>02</div>
-              <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Risk Stratification & Triage</h3>
-                <p className={styles.showcaseDescription}>
-                  Automatically categorizes patients into Low, Medium, or High risk categories with confidence 
-                  scores. This triage capability helps allocate limited polysomnography resources to patients 
-                  most likely to benefit, improving diagnostic yield while reducing healthcare costs and wait times.
-                </p>
-              </div>
-            </div>
-            <div className={styles.showcaseItem}>
-              <div className={styles.showcaseNumber}>03</div>
-              <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Segment-Level Analysis</h3>
-                <p className={styles.showcaseDescription}>
-                  Pinpoints exact time windows in the overnight recording where apnea events are suspected. 
-                  The model processes multi-minute ECG segments and aggregates per-segment predictions into 
-                  an overall apnea burden score, enabling targeted clinical review of high-risk periods.
-                </p>
-              </div>
-            </div>
-            <div className={styles.showcaseItem}>
-              <div className={styles.showcaseNumber}>04</div>
-              <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Physiological Biomarkers</h3>
-                <p className={styles.showcaseDescription}>
-                  An explainability agent operates on model outputs and derived metrics—VLF/HF ratio, 
-                  sample entropy, R-peak amplitude variability—to highlight apnea-like segments. These 
-                  interpretable biomarkers correlate with intermittent hypoxia and autonomic instability, 
-                  making AI decisions transparent and clinically meaningful.
-                </p>
-              </div>
-            </div>
+      <section id="features" className="ss-section">
+        <div className="ss-section-badge">Core Capabilities</div>
+        <h2 className="ss-section-title">Powerful Features for Clinical Insight</h2>
+        
+        <div className="ss-feature-grid">
+          <div className="glass-card">
+            <div className="ss-feature-icon">AI</div>
+            <h3 className="ss-feature-title">Hybrid CNN-Transformer Architecture</h3>
+            <p className="ss-feature-description">
+              Combines convolutional layers for local pattern detection with transformer attention 
+              mechanisms to capture long-range temporal dependencies in heart rate variability.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Analysis</div>
+            <h3 className="ss-feature-title">Risk Stratification & Triage</h3>
+            <p className="ss-feature-description">
+              Automatically categorizes patients into Low, Medium, or High risk tiers with confidence scores, 
+              helping allocate limited PSG resources to those most likely to benefit.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Time</div>
+            <h3 className="ss-feature-title">Segment-Level Analysis</h3>
+            <p className="ss-feature-description">
+              Pinpoints specific time windows where apnea events are suspected, enabling targeted 
+              clinical review and aggregated apnea burden scoring across overnight recordings.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Data</div>
+            <h3 className="ss-feature-title">Physiological Biomarkers</h3>
+            <p className="ss-feature-description">
+              Explainability layer surfaces interpretable metrics like VLF/HF ratio, sample entropy, 
+              and R-peak amplitude variability—correlating with intermittent hypoxia patterns.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Visual</div>
+            <h3 className="ss-feature-title">Grad-CAM Visualization</h3>
+            <p className="ss-feature-description">
+              Highlights the exact ECG regions that influenced model predictions, providing visual 
+              explanations that build clinician trust and enable validation.
+            </p>
+          </div>
+
+          <div className="glass-card">
+            <div className="ss-feature-icon">Scale</div>
+            <h3 className="ss-feature-title">Scalable & Accessible</h3>
+            <p className="ss-feature-description">
+              Software-only solution that works with existing ECG infrastructure, enabling deployment 
+              in resource-constrained settings without additional hardware costs.
+            </p>
           </div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className={styles.howItWorksSection}>
-        <div className={styles.sectionContent}>
-          <div className={styles.sectionBadge}>How It Works</div>
-          <h2 className={styles.sectionTitle}>Simple Workflow, Powerful Insights</h2>
-          
-          <div className={styles.workflowSteps}>
-            <div className={styles.workflowStep}>
-              <div className={styles.stepIcon}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <path d="M16 4v24M8 12l8-8 8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div className={styles.stepContent}>
-                <h3 className={styles.stepTitle}>1. Upload ECG Data</h3>
-                <p className={styles.stepDescription}>
-                  Upload overnight single-lead ECG recording in standard .dat format.
-                </p>
-              </div>
-            </div>
-            <div className={styles.stepConnector}></div>
-            <div className={styles.workflowStep}>
-              <div className={styles.stepIcon}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="2" fill="none"/>
-                  <path d="M16 8v8l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div className={styles.stepContent}>
-                <h3 className={styles.stepTitle}>2. AI Analysis</h3>
-                <p className={styles.stepDescription}>
-                  Our model analyzes heart rate variability patterns to detect potential apnea events.
-                </p>
-              </div>
-            </div>
-            <div className={styles.stepConnector}></div>
-            <div className={styles.workflowStep}>
-              <div className={styles.stepIcon}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <rect x="6" y="6" width="20" height="20" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
-                  <path d="M12 16l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div className={styles.stepContent}>
-                <h3 className={styles.stepTitle}>3. Review Results</h3>
-                <p className={styles.stepDescription}>
-                  View risk level, flagged segments, and interpretable explanations in an intuitive interface.
-                </p>
-              </div>
-            </div>
-            <div className={styles.stepConnector}></div>
-            <div className={styles.workflowStep}>
-              <div className={styles.stepIcon}>
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                  <path d="M8 16h16M16 8v16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div className={styles.stepContent}>
-                <h3 className={styles.stepTitle}>4. Take Action</h3>
-                <p className={styles.stepDescription}>
-                  Use AI recommendations to decide next steps: refer for PSG, monitor, or repeat test.
-                </p>
-              </div>
-            </div>
+      <section id="how-it-works" className="ss-section">
+        <div className="ss-section-badge">How It Works</div>
+        <h2 className="ss-section-title">Simple Workflow, Powerful Results</h2>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2rem', marginTop: '4rem' }}>
+          <div className="glass-card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', color: '#000', opacity: '0.15' }}>01</div>
+            <h3 className="ss-feature-title" style={{ fontSize: '1.125rem' }}>Upload ECG</h3>
+            <p className="ss-feature-description">
+              Upload overnight single-lead ECG recording in standard format
+            </p>
+          </div>
+
+          <div className="glass-card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', color: '#000', opacity: '0.15' }}>02</div>
+            <h3 className="ss-feature-title" style={{ fontSize: '1.125rem' }}>AI Analysis</h3>
+            <p className="ss-feature-description">
+              Model analyzes HRV patterns to detect potential apnea events
+            </p>
+          </div>
+
+          <div className="glass-card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', color: '#000', opacity: '0.15' }}>03</div>
+            <h3 className="ss-feature-title" style={{ fontSize: '1.125rem' }}>Review Results</h3>
+            <p className="ss-feature-description">
+              View risk level, flagged segments, and explanations
+            </p>
+          </div>
+
+          <div className="glass-card" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2.5rem', fontWeight: '600', marginBottom: '1rem', color: '#000', opacity: '0.15' }}>04</div>
+            <h3 className="ss-feature-title" style={{ fontSize: '1.125rem' }}>Take Action</h3>
+            <p className="ss-feature-description">
+              Use insights to prioritize PSG referrals and follow-up
+            </p>
           </div>
         </div>
       </section>
 
-      {/* Research Section */}
-      <section id="research" className={styles.researchSection}>
-        <div className={styles.sectionContent}>
-          <div className={styles.sectionBadge}>Research</div>
-          <h2 className={styles.sectionTitle}>Research Paper</h2>
-          <p className={styles.sectionDescription}>
-            Our work explores CNN-Transformer architectures for ECG-based sleep apnea detection, 
-            combining convolutional feature extraction with attention mechanisms to capture 
-            long-range temporal dependencies in heart rate variability patterns.
+      {/* Paper Section */}
+      <section id="paper" className="ss-section">
+        <div className="ss-section-badge">Research</div>
+        <h2 className="ss-section-title">Academic Research</h2>
+        <p className="ss-section-description">
+          Our work explores CNN-Transformer architectures for ECG-based sleep apnea detection, 
+          combining convolutional feature extraction with attention mechanisms to capture 
+          long-range temporal dependencies in heart rate variability patterns.
+        </p>
+        
+        <div className="glass-card" style={{ textAlign: 'center', padding: '4rem' }}>
+          <div style={{ fontSize: '4rem', fontWeight: '600', marginBottom: '2rem', color: '#000', opacity: '0.15' }}>PAPER</div>
+          <h3 className="ss-feature-title" style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>
+            Paper Coming Soon
+          </h3>
+          <p className="ss-feature-description" style={{ fontSize: '1rem' }}>
+            PDF will be embedded here once our research paper is published.
           </p>
-          
-          <div className={styles.researchPlaceholder}>
-            <div className={styles.placeholderIcon}>
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <h3 className={styles.placeholderTitle}>Full Research Paper Coming Soon</h3>
-            <p className={styles.placeholderText}>
-              We're currently preparing the complete research paper for publication. 
-              The paper will include detailed methodology, architecture design, evaluation metrics, 
-              and clinical implications of our CNN-Transformer approach to sleep apnea screening.
-            </p>
-            <div className={styles.placeholderNote}>
-              <strong>Paper Title:</strong> AgenticCardioGram: Machine Learning Powered ECG Analysis System for Sleep Apnea Classification
-            </div>
-          </div>
+          <p style={{ color: 'rgba(0, 0, 0, 0.6)', marginTop: '2rem', fontStyle: 'italic', fontSize: '0.875rem' }}>
+            Working Title: AgenticCardioGram: Machine Learning Powered ECG Analysis System for Sleep Apnea Classification
+          </p>
         </div>
       </section>
 
       {/* Team Section */}
-      <section id="team" className={styles.teamSection}>
-        <div className={styles.sectionContent}>
-          <div className={styles.sectionBadge}>Our Team</div>
-          <h2 className={styles.sectionTitle}>Meet the Team</h2>
-          <p className={styles.sectionDescription}>
-            Built by a multidisciplinary team at Western University for the CUCAI competition.
-          </p>
-          
-          <div className={styles.teamGrid}>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>OO</div>
-              <h3 className={styles.teamName}>Oliver Olejar</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>oolejar@uwo.ca</p>
-            </div>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>DK</div>
-              <h3 className={styles.teamName}>Daniel Kaminsky</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>dkamins7@uwo.ca</p>
-            </div>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>AL</div>
-              <h3 className={styles.teamName}>Annie Liu</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>yliu5349@uwo.ca</p>
-            </div>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>JM</div>
-              <h3 className={styles.teamName}>John MacPhie</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>jmacphi2@uwo.ca</p>
-            </div>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>SS</div>
-              <h3 className={styles.teamName}>Sneha Shah</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>sshah495@uwo.ca</p>
-            </div>
-            <div className={styles.teamCard}>
-              <div className={styles.teamAvatar}>NK</div>
-              <h3 className={styles.teamName}>Noah Kostesku</h3>
-              <p className={styles.teamAffiliation}>Western University</p>
-              <p className={styles.teamEmail}>nkostes@uwo.ca</p>
-            </div>
+      <section className="ss-section">
+        <div className="ss-section-badge">Our Team</div>
+        <h2 className="ss-section-title">Built by Researchers at Western University</h2>
+        <p className="ss-section-description">
+          Developed by a multidisciplinary team for the CUCAI competition, combining expertise 
+          in machine learning, signal processing, and clinical medicine.
+        </p>
+        
+        <div className="ss-team-grid">
+          <div className="ss-team-member glass-card">
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', margin: '0 auto 1rem', border: '1px solid rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.5)' }}>OO</div>
+            <h3 className="ss-team-name">Oliver Olejar</h3>
+            <p className="ss-team-role">Western University</p>
+          </div>
+          <div className="ss-team-member glass-card">
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', margin: '0 auto 1rem', border: '1px solid rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.5)' }}>DK</div>
+            <h3 className="ss-team-name">Daniel Kaminsky</h3>
+            <p className="ss-team-role">Western University</p>
+          </div>
+          <div className="ss-team-member glass-card">
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', margin: '0 auto 1rem', border: '1px solid rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.5)' }}>AL</div>
+            <h3 className="ss-team-name">Annie Liu</h3>
+            <p className="ss-team-role">Western University</p>
+          </div>
+          <div className="ss-team-member glass-card">
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', margin: '0 auto 1rem', border: '1px solid rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.5)' }}>JM</div>
+            <h3 className="ss-team-name">John MacPhie</h3>
+            <p className="ss-team-role">Western University</p>
+          </div>
+          <div className="ss-team-member glass-card">
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(0, 0, 0, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', margin: '0 auto 1rem', border: '1px solid rgba(0, 0, 0, 0.08)', color: 'rgba(0, 0, 0, 0.5)' }}>SS</div>
+            <h3 className="ss-team-name">Sneha Shah</h3>
+            <p className="ss-team-role">Western University</p>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className={styles.ctaSection}>
-        <div className={styles.ctaContent}>
-          <h2 className={styles.ctaTitle}>Ready to Transform Sleep Apnea Screening?</h2>
-          <p className={styles.ctaDescription}>
+      <section className="ss-section">
+        <div className="glass-card" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          textAlign: 'center', 
+          padding: '5rem 3rem'
+        }}>
+          <h2 className="ss-section-title" style={{ 
+            marginBottom: '1rem'
+          }}>
+            Ready to Transform Sleep Apnea Screening?
+          </h2>
+          <p className="ss-section-description" style={{ 
+            marginBottom: '2.5rem', 
+            fontSize: '1.125rem'
+          }}>
             Start analyzing ECG data with AI-powered insights today.
           </p>
-          <button onClick={handleGetStarted} className={styles.ctaButton}>
-            Launch Application
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M4 10h12M12 6l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+          <button onClick={() => navigate('/app')} className="cta-orange" style={{ fontSize: '1.0625rem', padding: '1rem 2rem' }}>
+            Get started
           </button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className={styles.footer}>
-        <div className={styles.footerContent}>
-          <div className={styles.footerLogo}>
-            <div className={styles.logoIcon}>
-              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                <path d="M4 16L8 16L11 8L15 24L19 12L22 16L28 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
-              </svg>
+      <footer className="ss-footer">
+        <div className="ss-footer-content">
+          <div className="ss-footer-disclaimer">
+            <strong>Medical Disclaimer:</strong> NeuralApnea Triage is a research prototype and demonstration 
+            tool built for educational purposes and the CUCAI competition. It is NOT a medical device and is 
+            NOT intended for clinical diagnosis or treatment decisions. This system is not a replacement 
+            for polysomnography (PSG). Always consult with qualified healthcare professionals for medical 
+            decisions and diagnosis. This tool demonstrates the potential of AI-powered ECG screening for 
+            sleep apnea triage support.
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '2rem' }}>
+            <div className="ss-logo">
+              <span>NeuralApnea Triage</span>
             </div>
-            <span>NeuralApnea Triage</span>
+
+            <div className="ss-footer-links">
+              <a href="#about" className="ss-footer-link">About</a>
+              <a href="#features" className="ss-footer-link">Features</a>
+              <a href="#how-it-works" className="ss-footer-link">How It Works</a>
+              <a href="#paper" className="ss-footer-link">Research</a>
+              <a href="#" className="ss-footer-link">Privacy</a>
+              <a href="#" className="ss-footer-link">Contact</a>
+            </div>
           </div>
-          <div className={styles.footerLinks}>
-            <a href="#" className={styles.footerLink}>Documentation</a>
-            <a href="#" className={styles.footerLink}>Research</a>
-            <a href="#" className={styles.footerLink}>Privacy</a>
-            <a href="#" className={styles.footerLink}>Contact</a>
-          </div>
-          <div className={styles.footerDisclaimer}>
-            <p>
-              <strong>Medical Disclaimer:</strong> NeuralApnea Triage is a demonstration tool built 
-              for educational purposes and the CUCAI competition. It is NOT a medical device and is 
-              NOT intended for clinical diagnosis or treatment decisions. This system demonstrates 
-              the potential of AI-powered ECG screening for sleep apnea triage. Always consult with 
-              qualified healthcare professionals for medical decisions and diagnosis.
-            </p>
-            <p className={styles.copyright}>© 2026 NeuralApnea Triage. Built for CUCAI Competition.</p>
+
+          <div className="ss-copyright">
+            © 2026 NeuralApnea Triage. Built for CUCAI Competition by Oliver Olejar, Daniel Kaminsky, Annie Liu, John MacPhie, and Sneha Shah.
           </div>
         </div>
       </footer>
+
+      {/* Demo Modal */}
+      {showDemoModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '2rem'
+          }}
+          onClick={() => setShowDemoModal(false)}
+        >
+          <div 
+            className="glass-card"
+            style={{ maxWidth: '500px', textAlign: 'center' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '1.75rem', color: '#000', marginBottom: '1rem', fontWeight: '600' }}>Demo Video</h3>
+            <p style={{ color: 'rgba(0, 0, 0, 0.7)', marginBottom: '2rem', lineHeight: '1.7' }}>
+              Demo video coming soon. For now, explore the platform by clicking "Get started" to see the 
+              patient analysis interface.
+            </p>
+            <button onClick={() => setShowDemoModal(false)} className="cta-orange">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default LandingPage;
-
