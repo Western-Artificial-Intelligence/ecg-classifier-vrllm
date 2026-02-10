@@ -40,7 +40,7 @@ const FAQ: React.FC = () => {
     },
     {
       question: 'What kind of ECG data does it accept?',
-      answer: 'The system works with single-lead overnight ECG recordings, typically 6 to 8 hours in duration. It accepts standard PhysioNet-compatible .dat/.hea formats, though the web interface can adapt to common clinical ECG exports.'
+      answer: 'The system works with single-lead overnight ECG recordings, typically 6–8 hours in duration. It accepts standard PhysioNet-compatible .dat/.hea formats, though the web interface can adapt to common clinical ECG exports.'
     },
     {
       question: 'How accurate is the model?',
@@ -52,7 +52,7 @@ const FAQ: React.FC = () => {
     },
     {
       question: 'What are the system requirements?',
-      answer: 'The web interface runs in any modern browser. For backend inference, you will need Python 3.9+, PyTorch, and standard scientific libraries (NumPy, SciPy). The model can run on CPU but benefits from GPU acceleration for batch processing.'
+      answer: "The web interface runs in any modern browser. For backend inference, you'll need Python 3.9+, PyTorch, and standard scientific libraries (NumPy, SciPy). The model can run on CPU but benefits from GPU acceleration for batch processing."
     },
     {
       question: 'How does the explainability agent work?',
@@ -83,3 +83,4 @@ const FAQ: React.FC = () => {
 };
 
 export default FAQ;
+

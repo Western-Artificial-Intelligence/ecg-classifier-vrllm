@@ -6,7 +6,7 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleGetStarted = () => {
-    navigate('/analysis');
+    navigate('/dashboard');
   };
 
   return (
@@ -21,12 +21,13 @@ const LandingPage: React.FC = () => {
                 <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
               </svg>
             </div>
-            <span className={styles.logoText}>ApneaScreen</span>
+            <span className={styles.logoText}>NeuralApnea Triage</span>
           </div>
           <div className={styles.navLinks}>
             <a href="#about" className={styles.navLink}>About</a>
             <a href="#features" className={styles.navLink}>Features</a>
             <a href="#how-it-works" className={styles.navLink}>How It Works</a>
+            <a href="#research" className={styles.navLink}>Research</a>
             <button onClick={handleGetStarted} className={styles.navButton}>Launch App</button>
           </div>
         </div>
@@ -37,7 +38,7 @@ const LandingPage: React.FC = () => {
         <div className={styles.heroContent}>
           <div className={styles.badge}>
             <span className={styles.badgeDot}></span>
-            <span>AI-Powered Clinical Assistant</span>
+            <span>CUCAI Competition Demo</span>
           </div>
           <h1 className={styles.heroTitle}>
             Sleep Apnea Screening
@@ -45,9 +46,10 @@ const LandingPage: React.FC = () => {
             <span className={styles.titleGradient}>Reimagined with AI</span>
           </h1>
           <p className={styles.heroDescription}>
-            A clinical screening assistant that analyzes overnight ECG recordings to identify 
-            potential sleep apnea events—helping clinicians prioritize cases and make 
-            informed decisions faster.
+            A demonstration triage and screening tool built for the CUCAI competition, showcasing 
+            the potential of AI in medical applications. This prototype analyzes overnight ECG 
+            recordings to identify potential sleep apnea events—demonstrating how machine learning 
+            could help clinicians prioritize cases in real-world settings.
           </p>
           <div className={styles.heroActions}>
             <button onClick={handleGetStarted} className={styles.primaryButton}>
@@ -125,16 +127,16 @@ const LandingPage: React.FC = () => {
       <section className={styles.statsSection}>
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <div className={styles.statNumber}>94%</div>
-            <div className={styles.statLabel}>Detection Accuracy</div>
+            <div className={styles.statNumber}>80%</div>
+            <div className={styles.statLabel}>Sleep Apnea Cases Undiagnosed</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statNumber}>3 min</div>
-            <div className={styles.statLabel}>Average Analysis Time</div>
+            <div className={styles.statNumber}>8-30 mo</div>
+            <div className={styles.statLabel}>Wait Time for PSG in Canada</div>
           </div>
           <div className={styles.statCard}>
-            <div className={styles.statNumber}>1000+</div>
-            <div className={styles.statLabel}>ECG Records Analyzed</div>
+            <div className={styles.statNumber}>$1-10K</div>
+            <div className={styles.statLabel}>Cost Per Polysomnography Study</div>
           </div>
         </div>
       </section>
@@ -145,10 +147,11 @@ const LandingPage: React.FC = () => {
           <div className={styles.sectionBadge}>About the Tool</div>
           <h2 className={styles.sectionTitle}>Clinical Intelligence for Sleep Apnea Detection</h2>
           <p className={styles.sectionDescription}>
-            Sleep apnea affects millions globally, but traditional diagnosis requires expensive, 
-            time-intensive polysomnography studies. Our AI-powered screening tool analyzes 
-            single-lead ECG data to flag high-risk patients, helping clinicians prioritize 
-            cases and reduce diagnostic delays.
+            Sleep apnea affects hundreds of millions globally, yet approximately 80% of cases remain 
+            undiagnosed. Traditional diagnosis through polysomnography is expensive ($1,000–$10,000 per study), 
+            time-intensive, and suffers from severe accessibility issues—with wait times ranging from 8 to 30 months 
+            in Canada alone. Our AI-powered screening tool analyzes single-lead ECG data to flag high-risk patients, 
+            helping prioritize limited diagnostic resources and reduce delays in care.
           </p>
           <div className={styles.featureGrid}>
             <div className={styles.featureCard}>
@@ -157,10 +160,11 @@ const LandingPage: React.FC = () => {
                   <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" stroke="currentColor" strokeWidth="2" fill="none"/>
                 </svg>
               </div>
-              <h3 className={styles.featureTitle}>Not a Medical Device</h3>
+              <h3 className={styles.featureTitle}>Demo Tool - Not a Medical Device</h3>
               <p className={styles.featureDescription}>
-                This is a screening tool, not a diagnostic device. It flags risk and suggests 
-                further evaluation via polysomnography.
+                This is a demonstration triage/screening tool built for the CUCAI competition to 
+                showcase medical AI potential. Not intended for clinical diagnosis. It demonstrates 
+                how ECG-based screening could flag risk and suggest further evaluation via polysomnography.
               </p>
             </div>
             <div className={styles.featureCard}>
@@ -171,8 +175,9 @@ const LandingPage: React.FC = () => {
               </div>
               <h3 className={styles.featureTitle}>Explainable AI</h3>
               <p className={styles.featureDescription}>
-                Every prediction is backed by interpretable signals (HRV, entropy changes) 
-                so clinicians understand the "why" behind each flag.
+                Every prediction is backed by interpretable physiological signals—heart rate variability (HRV) 
+                metrics, sample entropy changes, and attention visualizations—so clinicians understand the "why" 
+                behind each risk assessment. Grad-CAM highlights the ECG regions driving predictions.
               </p>
             </div>
             <div className={styles.featureCard}>
@@ -181,10 +186,11 @@ const LandingPage: React.FC = () => {
                   <path d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" strokeWidth="2" fill="none"/>
                 </svg>
               </div>
-              <h3 className={styles.featureTitle}>Single-Lead ECG</h3>
+              <h3 className={styles.featureTitle}>Software-Only, ECG-Based Screening</h3>
               <p className={styles.featureDescription}>
-                Works with overnight single-lead ECG recordings, making it accessible 
-                for remote monitoring and preliminary screening.
+                Works with overnight single-lead ECG recordings already collected during routine cardiac monitoring. 
+                No additional sensors, specialized staff, or new clinical workflows required—unlocking diagnostic 
+                information from existing data archives without new collection costs.
               </p>
             </div>
           </div>
@@ -201,40 +207,46 @@ const LandingPage: React.FC = () => {
             <div className={styles.showcaseItem}>
               <div className={styles.showcaseNumber}>01</div>
               <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Risk Stratification</h3>
+                <h3 className={styles.showcaseTitle}>AI Architecture</h3>
                 <p className={styles.showcaseDescription}>
-                  Automatically categorizes patients into Low, Medium, or High risk categories 
-                  based on ECG analysis, with confidence scores to guide decision-making.
+                  A hybrid CNN-Transformer model captures both local morphological features and long-range 
+                  temporal dependencies. The CNN extracts R-wave dynamics and beat-shape patterns, while the 
+                  Transformer encoder uses multi-head self-attention to model autonomic fluctuations across 
+                  multi-minute windows—detecting gradual apnea-related changes traditional methods miss.
                 </p>
               </div>
             </div>
             <div className={styles.showcaseItem}>
               <div className={styles.showcaseNumber}>02</div>
               <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Segment Highlighting</h3>
+                <h3 className={styles.showcaseTitle}>Risk Stratification & Triage</h3>
                 <p className={styles.showcaseDescription}>
-                  Pinpoints exact time windows in the overnight recording where apnea events 
-                  are suspected, allowing targeted review by clinicians.
+                  Automatically categorizes patients into Low, Medium, or High risk categories with confidence 
+                  scores. This triage capability helps allocate limited polysomnography resources to patients 
+                  most likely to benefit, improving diagnostic yield while reducing healthcare costs and wait times.
                 </p>
               </div>
             </div>
             <div className={styles.showcaseItem}>
               <div className={styles.showcaseNumber}>03</div>
               <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Interpretable Signals</h3>
+                <h3 className={styles.showcaseTitle}>Segment-Level Analysis</h3>
                 <p className={styles.showcaseDescription}>
-                  Shows VLF/HF ratio changes, sample entropy, and other biomarkers that 
-                  correlate with apnea events—making AI decisions transparent.
+                  Pinpoints exact time windows in the overnight recording where apnea events are suspected. 
+                  The model processes multi-minute ECG segments and aggregates per-segment predictions into 
+                  an overall apnea burden score, enabling targeted clinical review of high-risk periods.
                 </p>
               </div>
             </div>
             <div className={styles.showcaseItem}>
               <div className={styles.showcaseNumber}>04</div>
               <div className={styles.showcaseContent}>
-                <h3 className={styles.showcaseTitle}>Conversational Assistant</h3>
+                <h3 className={styles.showcaseTitle}>Physiological Biomarkers</h3>
                 <p className={styles.showcaseDescription}>
-                  Ask questions about the analysis, get explanations, and receive recommendations 
-                  for next steps through an AI-powered clinical assistant.
+                  An explainability agent operates on model outputs and derived metrics—VLF/HF ratio, 
+                  sample entropy, R-peak amplitude variability—to highlight apnea-like segments. These 
+                  interpretable biomarkers correlate with intermittent hypoxia and autonomic instability, 
+                  making AI decisions transparent and clinically meaningful.
                 </p>
               </div>
             </div>
@@ -310,6 +322,86 @@ const LandingPage: React.FC = () => {
         </div>
       </section>
 
+      {/* Research Section */}
+      <section id="research" className={styles.researchSection}>
+        <div className={styles.sectionContent}>
+          <div className={styles.sectionBadge}>Research</div>
+          <h2 className={styles.sectionTitle}>Research Paper</h2>
+          <p className={styles.sectionDescription}>
+            Our work explores CNN-Transformer architectures for ECG-based sleep apnea detection, 
+            combining convolutional feature extraction with attention mechanisms to capture 
+            long-range temporal dependencies in heart rate variability patterns.
+          </p>
+          
+          <div className={styles.researchPlaceholder}>
+            <div className={styles.placeholderIcon}>
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+            <h3 className={styles.placeholderTitle}>Full Research Paper Coming Soon</h3>
+            <p className={styles.placeholderText}>
+              We're currently preparing the complete research paper for publication. 
+              The paper will include detailed methodology, architecture design, evaluation metrics, 
+              and clinical implications of our CNN-Transformer approach to sleep apnea screening.
+            </p>
+            <div className={styles.placeholderNote}>
+              <strong>Paper Title:</strong> AgenticCardioGram: Machine Learning Powered ECG Analysis System for Sleep Apnea Classification
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Team Section */}
+      <section id="team" className={styles.teamSection}>
+        <div className={styles.sectionContent}>
+          <div className={styles.sectionBadge}>Our Team</div>
+          <h2 className={styles.sectionTitle}>Meet the Team</h2>
+          <p className={styles.sectionDescription}>
+            Built by a multidisciplinary team at Western University for the CUCAI competition.
+          </p>
+          
+          <div className={styles.teamGrid}>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>OO</div>
+              <h3 className={styles.teamName}>Oliver Olejar</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>oolejar@uwo.ca</p>
+            </div>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>DK</div>
+              <h3 className={styles.teamName}>Daniel Kaminsky</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>dkamins7@uwo.ca</p>
+            </div>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>AL</div>
+              <h3 className={styles.teamName}>Annie Liu</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>yliu5349@uwo.ca</p>
+            </div>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>JM</div>
+              <h3 className={styles.teamName}>John MacPhie</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>jmacphi2@uwo.ca</p>
+            </div>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>SS</div>
+              <h3 className={styles.teamName}>Sneha Shah</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>sshah495@uwo.ca</p>
+            </div>
+            <div className={styles.teamCard}>
+              <div className={styles.teamAvatar}>NK</div>
+              <h3 className={styles.teamName}>Noah Kostesku</h3>
+              <p className={styles.teamAffiliation}>Western University</p>
+              <p className={styles.teamEmail}>nkostes@uwo.ca</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className={styles.ctaSection}>
         <div className={styles.ctaContent}>
@@ -336,7 +428,7 @@ const LandingPage: React.FC = () => {
                 <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="none"/>
               </svg>
             </div>
-            <span>ApneaScreen</span>
+            <span>NeuralApnea Triage</span>
           </div>
           <div className={styles.footerLinks}>
             <a href="#" className={styles.footerLink}>Documentation</a>
@@ -346,10 +438,13 @@ const LandingPage: React.FC = () => {
           </div>
           <div className={styles.footerDisclaimer}>
             <p>
-              <strong>Medical Disclaimer:</strong> This tool is for screening purposes only and does not 
-              diagnose sleep apnea. Always consult with qualified healthcare professionals for medical decisions.
+              <strong>Medical Disclaimer:</strong> NeuralApnea Triage is a demonstration tool built 
+              for educational purposes and the CUCAI competition. It is NOT a medical device and is 
+              NOT intended for clinical diagnosis or treatment decisions. This system demonstrates 
+              the potential of AI-powered ECG screening for sleep apnea triage. Always consult with 
+              qualified healthcare professionals for medical decisions and diagnosis.
             </p>
-            <p className={styles.copyright}>© 2026 ApneaScreen. Built for CUCAI Competition.</p>
+            <p className={styles.copyright}>© 2026 NeuralApnea Triage. Built for CUCAI Competition.</p>
           </div>
         </div>
       </footer>

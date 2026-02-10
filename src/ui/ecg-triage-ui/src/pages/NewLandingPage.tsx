@@ -24,7 +24,7 @@ const NewLandingPage: React.FC = () => {
   }, []);
 
   const handleDemoClick = () => {
-    navigate('/analysis');
+    navigate('/dashboard');
   };
 
   return (
