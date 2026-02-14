@@ -12,13 +12,10 @@ import numpy as np
 import tensorflow as tf
 
 # Import project modules for prediction and Grad-CAM
-from src import config
-from src.utilities.preprocess import preprocess_with_cache
-from src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
+from backend.src import config
+from backend.src.utilities.preprocess import preprocess_with_cache
+from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
 
-# Define the base directory for ECG data relative to the project root
-# This assumes the backend is run from the project root or similar.
-ECG_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../data/raw/ecgdata")
 
 # Define Grad-CAM images directory
 GRADCAM_IMAGES_DIR = os.path.join(config.PROCESSED_DATA_DIR, "gradcam_images")
@@ -101,10 +98,10 @@ async def get_ecg_data(filename: str):
     if not filename.endswith(".dat"):
         raise HTTPException(status_code=400, detail="Only .dat files are supported.")
 
-    file_full_path = os.path.join(ECG_DATA_DIR, filename)
+    file_full_path = os.path.join(config.RAW_DATA_DIR, filename)
 
     if not os.path.exists(file_full_path):
-        raise HTTPException(status_code=404, detail=f"File {filename} not found at {ECG_DATA_DIR}")
+        raise HTTPException(status_code=404, detail=f"File {filename} not found at {config.RAW_DATA_DIR}")
 
     ecg_samples = read_ecg_data(file_full_path)
     return {"filename": filename, "data": ecg_samples}

@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import cv2
-from src import config
+from backend.src import config
 
 def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
     """

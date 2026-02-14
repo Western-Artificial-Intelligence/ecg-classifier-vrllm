@@ -15,9 +15,9 @@ import argparse # Standard library for parsing command-line arguments
 
 # Import core modules of the project.
 # These modules contain the functions that implement each stage of the pipeline.
-from src import train        # Module for model training functionalities
-from src import evaluate     # Module for model evaluation and prediction functionalities
-from src import preprocessing # Module for the main data preprocessing pipeline
+from backend.src import train        # Module for model training functionalities
+from backend.src import evaluate     # Module for model evaluation and prediction functionalities
+from backend.src import preprocessing # Module for the main data preprocessing pipeline
 
 
 def main():

@@ -22,10 +22,10 @@ import tensorflow as tf
 from sklearn.metrics import confusion_matrix, f1_score, roc_curve, auc
 
 # Import project-specific modules
-from src import config # For accessing configuration parameters and file paths
-from src.utilities.preprocess import preprocess # For preprocessing single ECG records for prediction
-from src.data_loader import load_data # For loading the main processed dataset
-from src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization # Import Grad-CAM utilities
+from backend.src import config # For accessing configuration parameters and file paths
+from backend.src.utilities.preprocess import preprocess # For preprocessing single ECG records for prediction
+from backend.src.data_loader import load_data # For loading the main processed dataset
+from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization # Import Grad-CAM utilities
 
 
 def plot_training_history(history: tf.keras.callbacks.History):

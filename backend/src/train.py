@@ -16,9 +16,9 @@ import tensorflow as tf
 import keras
 
 # Import project-specific modules
-from src import config # For accessing configuration parameters (e.g., file paths, model params)
-from src.data_loader import load_data # For loading prepared training and testing data
-from src.model import create_model # For instantiating the CNN-Transformer model architecture
+from backend.src import config # For accessing configuration parameters (e.g., file paths, model params)
+from backend.src.data_loader import load_data # For loading prepared training and testing data
+from backend.src.model import create_model # For instantiating the CNN-Transformer model architecture
 
 
 def train_model() -> keras.callbacks.History:

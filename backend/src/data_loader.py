@@ -16,7 +16,7 @@ import numpy as np
 from scipy.interpolate import splev, splrep
 
 # Import project-specific configuration
-from src import config
+from backend.src import config
 
 # Define a scaler function for min-max normalization.
 # This scales an array's values to a range between 0 and 1.

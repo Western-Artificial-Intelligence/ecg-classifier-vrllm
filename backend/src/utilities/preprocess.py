@@ -23,10 +23,10 @@ from scipy.signal import medfilt
 from scipy.interpolate import splev, splrep
 
 # Import project-specific configuration
-from src import config
+from backend.src import config
 
 # Import HRV and EDR computation utilities
-from src.utilities.hrv_edr import (
+from backend.src.utilities.hrv_edr import (
     compute_time_domain_hrv,
     compute_frequency_domain_hrv,
     compute_edr_metrics,

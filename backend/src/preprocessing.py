@@ -29,7 +29,7 @@ from scipy.signal import medfilt
 from tqdm import tqdm # Progress bar for loops
 
 # Import project-specific configuration
-from src import config
+from backend.src import config
 
 def worker(name: str, labels: list) -> tuple:
     """
