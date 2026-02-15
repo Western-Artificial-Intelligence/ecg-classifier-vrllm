@@ -35,11 +35,11 @@ const SummaryChartView: React.FC<SummaryChartViewProps> = ({
 }) => {
   // Sort predictions by minute
   const sortedPredictions = [...predictions].sort((a, b) => a.minute - b.minute);
-  
+
   // Create labels and data
   const labels = sortedPredictions.map(p => `Min ${p.minute}`);
   const data = sortedPredictions.map(p => p.probability * 100);
-  
+
   // Color code based on probability
   const backgroundColors = sortedPredictions.map(p => {
     if (p.probability >= 0.75) return 'rgba(244, 67, 54, 0.8)'; // High risk - red
@@ -71,7 +71,7 @@ const SummaryChartView: React.FC<SummaryChartViewProps> = ({
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    onClick: (event: any, activeElements: any[]) => {
+    onClick: (_event: any, activeElements: any[]) => {
       if (activeElements.length > 0) {
         const index = activeElements[0].index;
         const minute = sortedPredictions[index].minute;
@@ -91,14 +91,14 @@ const SummaryChartView: React.FC<SummaryChartViewProps> = ({
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
+          label: function (context: any) {
             const minute = sortedPredictions[context.dataIndex].minute;
             const prob = context.parsed.y;
             let risk = 'Low';
             if (prob >= 75) risk = 'High';
             else if (prob >= 50) risk = 'Medium';
             else if (prob >= 25) risk = 'Low-Medium';
-            
+
             return [
               `Minute: ${minute}`,
               `Probability: ${prob.toFixed(1)}%`,
@@ -129,7 +129,7 @@ const SummaryChartView: React.FC<SummaryChartViewProps> = ({
         min: 0,
         max: 100,
         ticks: {
-          callback: function(value: any) {
+          callback: function (value: any) {
             return value + '%';
           }
         }
@@ -142,10 +142,10 @@ const SummaryChartView: React.FC<SummaryChartViewProps> = ({
       {predictions.length > 0 ? (
         <Bar data={chartData} options={options} />
       ) : (
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           height: '100%',
           color: '#999'
         }}>

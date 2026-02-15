@@ -1,4 +1,4 @@
-# ECG Apnea Classifier
+# NeuralApnea Triage - ECG Sleep Apnea Triage Tool
 
 This project implements a CNN-Transformer model for detecting sleep apnea from ECG signals. The codebase is organized into a modular, industry-standard structure with a clear separation between the frontend UI and the backend ML API.
 

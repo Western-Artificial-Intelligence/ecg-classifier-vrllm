@@ -44,7 +44,10 @@ const MinimapView: React.FC<MinimapViewProps> = ({
   onPositionChange
 }) => {
   const chartRef = useRef<ChartJS<'line'>>(null);
-  const [chartData, setChartData] = useState({
+  const [chartData, setChartData] = useState<{
+    labels: string[];
+    datasets: any[];
+  }>({
     labels: [],
     datasets: [
       {
@@ -61,21 +64,21 @@ const MinimapView: React.FC<MinimapViewProps> = ({
   // Downsample data for minimap
   const downsampleData = (data: number[], targetPoints: number = 2000): number[] => {
     if (data.length <= targetPoints) return data;
-    
+
     const step = data.length / targetPoints;
     const downsampled: number[] = [];
-    
+
     for (let i = 0; i < targetPoints; i++) {
       const start = Math.floor(i * step);
       const end = Math.floor((i + 1) * step);
       const chunk = data.slice(start, end);
-      
+
       // Use max-min downsampling
       const max = Math.max(...chunk);
       const min = Math.min(...chunk);
       downsampled.push(max, min);
     }
-    
+
     return downsampled;
   };
 
@@ -100,9 +103,6 @@ const MinimapView: React.FC<MinimapViewProps> = ({
 
   // Create viewport indicator annotation
   const createViewportAnnotation = () => {
-    const startPercent = (currentPosition / dataPoints.length) * 100;
-    const endPercent = ((currentPosition + viewWindowSize) / dataPoints.length) * 100;
-    
     return {
       viewport: {
         type: 'box' as const,
@@ -130,7 +130,7 @@ const MinimapView: React.FC<MinimapViewProps> = ({
       if (pred.probability >= APNEA_THRESHOLD) {
         const minuteStartSample = pred.minute * SAMPLES_PER_MINUTE;
         const minuteEndSample = (pred.minute + 1) * SAMPLES_PER_MINUTE;
-        
+
         const xMin = Math.floor((minuteStartSample / dataPoints.length) * chartData.labels.length);
         const xMax = Math.floor((minuteEndSample / dataPoints.length) * chartData.labels.length);
 
@@ -151,17 +151,15 @@ const MinimapView: React.FC<MinimapViewProps> = ({
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    onClick: (event: any, activeElements: any[], chart: any) => {
+    onClick: (_event: any, _activeElements: any[], chart: any) => {
       // Get click position
       const canvasPosition = chart.canvas.getBoundingClientRect();
-      const x = event.clientX - canvasPosition.left;
-      const xScale = chart.scales.x;
-      
+      const _x = _event.clientX - canvasPosition.left;
       // Convert pixel position to data index
       const chartArea = chart.chartArea;
       const chartWidth = chartArea.right - chartArea.left;
-      const clickPercent = (x - chartArea.left) / chartWidth;
-      
+      const clickPercent = (_x - chartArea.left) / chartWidth;
+
       if (clickPercent >= 0 && clickPercent <= 1) {
         const newPosition = Math.floor(clickPercent * dataPoints.length);
         // Center the view on the clicked position
