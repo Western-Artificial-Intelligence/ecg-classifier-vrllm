@@ -1,0 +1,119 @@
+﻿
+"""
+This module implements the Evaluator Agent using Google Gemini 1.5 Pro.
+It analyzes Grad-CAM visualizations to explain the model's predictions.
+"""
+
+import os
+import glob
+import textwrap
+import google.generativeai as genai
+from PIL import Image
+from src import config
+from src import evaluate
+
+def configure_genai():
+    """Configures the Gemini API with the key from config."""
+    if not config.GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not found in configuration or environment variables.")
+    genai.configure(api_key=config.GEMINI_API_KEY)
+
+def analyze_image(image_path: str, record_name: str, minute: int, prediction: str, confidence: float) -> str:
+    """
+    Sends a Grad-CAM image to Gemini 1.5 Pro for analysis.
+    """
+    model = genai.GenerativeModel('gemini-2.5-flash')
+
+    img = Image.open(image_path)
+
+    prompt = textwrap.dedent(f"""
+        You are an expert cardiologist and AI interpretability specialist.
+        
+        **Context**:
+        - Patient Record: {record_name}
+        - ECG Segment: Minute {minute}
+        - Model Prediction: **{prediction}**
+        - Confidence: {confidence:.2f}
+        
+        **Input Image**:
+        The attached image shows a 1-minute ECG signal (split into 2-second segments).
+        The overlaid heatmap (red/warm colors) indicates the "Grad-CAM" attention - the regions the model found most important for its prediction.
+        
+        **Task**:
+        1.  **Morphological Analysis**: Look at the regions with high attention (red). Do you see specific ECG features? (e.g., R-peak amplitude changes, missed beats, irregular intervals, signal quality issues).
+        2.  **Physiological Correlation**: correct to physiology, does this attention make sense for a prediction of "{prediction}"? (e.g., Amplitude reduction often indicates Apnea).
+        3.  **Explain**: Provide a concise explanation of *why* the model likely made this prediction based on the visual evidence.
+        
+        Output in Markdown format.
+    """)
+
+    try:
+        response = model.generate_content([prompt, img])
+        return response.text
+    except Exception as e:
+        return f"Error evaluating image: {e}"
+
+def generate_report_for_record(record_name: str):
+    """
+    Generates a full report for a record by analyzing available Grad-CAM images.
+    If no images exist, it generates them first.
+    """
+    configure_genai()
+    
+    gradcam_dir = os.path.join(config.RESULTS_DIR, "gradcam")
+    
+    # Check if images exist, if not, generate them
+    # Pattern: {record_name}_min{minute}_{class_label}_{confidence:.2f}.png
+    pattern = os.path.join(gradcam_dir, f"{record_name}_min*.png")
+    images = glob.glob(pattern)
+    
+    if not images:
+        print(f"No existing visualizations found for {record_name}. Generating them now...")
+        evaluate.generate_gradcam_for_record(record_name)
+        images = glob.glob(pattern)
+        
+    if not images:
+        print(f"Could not generate or find images for {record_name}.")
+        return
+
+    print(f"Found {len(images)} visualizations for {record_name}. Starting analysis...")
+    
+    report_content = f"# Evaluator Agent Report: {record_name}\n\n"
+    report_content += "Processing Date: " + os.popen('date').read().strip() + "\n\n" # varied by OS, maybe just skip date or use python datetime
+
+    for image_path in images:
+        filename = os.path.basename(image_path)
+        # Parse info from filename: a01_min489_Apnea_1.00.png
+        try:
+            parts = filename.replace(".png", "").split("_")
+            # Expected: [record, "min"+minute, label, confidence]
+            # But record name might contain underscores if changed, though usually 'a01'
+            # Let's assume standard format from evaluate.py
+            
+            # evaluate.py save format: f"{record_name}_min{minute}_{class_label}_{confidence:.2f}.png"
+            confidence = float(parts[-1])
+            prediction = parts[-2]
+            minute = int(parts[-3].replace("min", ""))
+            
+            print(f"Analyzing Minute {minute} ({prediction})...")
+            analysis = analyze_image(image_path, record_name, minute, prediction, confidence)
+            
+            report_content += f"## Analysis: Minute {minute}\n"
+            report_content += f"**Prediction**: {prediction} (Confidence: {confidence:.2f})\n\n"
+            report_content += f"![Grad-CAM]({image_path})\n\n"
+            report_content += analysis + "\n\n"
+            report_content += "---\n\n"
+            
+        except Exception as e:
+            print(f"Skipping file {filename} due to parse/analyzing error: {e}")
+            continue
+
+    # Save Report
+    reports_dir = os.path.join(config.RESULTS_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    report_path = os.path.join(reports_dir, f"{record_name}_analysis.md")
+    
+    with open(report_path, "w", encoding='utf-8') as f:
+        f.write(report_content)
+        
+    print(f"\nReport saved to: {report_path}")
