@@ -13,6 +13,19 @@ from PIL import Image
 from backend.src import config
 from backend.src import evaluate
 
+
+def _parse_gradcam_filename(image_path: str):
+    """
+    Parse filename format produced by evaluate.py:
+    {record_name}_min{minute}_{class_label}_{confidence:.2f}.png
+    """
+    filename = os.path.basename(image_path)
+    parts = filename.replace(".png", "").split("_")
+    confidence = float(parts[-1])
+    prediction = parts[-2]
+    minute = int(parts[-3].replace("min", ""))
+    return minute, prediction, confidence
+
 def configure_genai():
     """Configures the Gemini API with the key from config."""
     if not config.GEMINI_API_KEY:
@@ -53,6 +66,87 @@ def analyze_image(image_path: str, record_name: str, minute: int, prediction: st
         return response.text
     except Exception as e:
         return f"Error evaluating image: {e}"
+
+
+def generate_chat_analysis_for_record(record_name: str, visualize_count: int = 3) -> dict:
+    """
+    Generate a single chat-friendly analysis message for a record.
+    Returns:
+        {
+            "analysis": str,
+            "meta": {"analyzed_minutes": int, "report_path": str}
+        }
+    """
+    configure_genai()
+
+    gradcam_dir = os.path.join(config.RESULTS_DIR, "gradcam")
+    os.makedirs(gradcam_dir, exist_ok=True)
+
+    pattern = os.path.join(gradcam_dir, f"{record_name}_min*.png")
+    images = glob.glob(pattern)
+
+    if not images:
+        evaluate.generate_gradcam_for_record(record_name, visualize_count=visualize_count)
+        images = glob.glob(pattern)
+
+    parsed_images = []
+    for image_path in images:
+        try:
+            minute, prediction, confidence = _parse_gradcam_filename(image_path)
+            parsed_images.append({
+                "image_path": image_path,
+                "minute": minute,
+                "prediction": prediction,
+                "confidence": confidence
+            })
+        except Exception:
+            continue
+
+    if not parsed_images:
+        raise ValueError(f"No Grad-CAM images available for record {record_name}.")
+
+    parsed_images.sort(key=lambda item: item["confidence"], reverse=True)
+    selected = parsed_images[:max(1, int(visualize_count))]
+
+    sections = [f"## ECG Agent Analysis for `{record_name}`", ""]
+    report_content = f"# Evaluator Agent Report: {record_name}\n\n"
+    report_content += f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+
+    for item in selected:
+        analysis = analyze_image(
+            item["image_path"],
+            record_name,
+            item["minute"],
+            item["prediction"],
+            item["confidence"],
+        )
+        sections.append(
+            f"### Minute {item['minute']} - {item['prediction']} (confidence {item['confidence']:.2f})"
+        )
+        sections.append(analysis)
+        sections.append("")
+
+        report_content += f"## Analysis: Minute {item['minute']}\n"
+        report_content += (
+            f"**Prediction**: {item['prediction']} (Confidence: {item['confidence']:.2f})\n\n"
+        )
+        report_content += f"![Grad-CAM]({item['image_path']})\n\n"
+        report_content += analysis + "\n\n"
+        report_content += "---\n\n"
+
+    reports_dir = os.path.join(config.RESULTS_DIR, "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    report_path = os.path.join(reports_dir, f"{record_name}_analysis.md")
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report_content)
+
+    return {
+        "analysis": "\n".join(sections).strip(),
+        "meta": {
+            "analyzed_minutes": len(selected),
+            "report_path": report_path,
+        },
+    }
 
 def generate_report_for_record(record_name: str):
     """

@@ -110,6 +110,7 @@ function App() {
 
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [predicting, setPredicting] = useState<boolean>(false);
+  const [analyzingAgent, setAnalyzingAgent] = useState<boolean>(false);
 
   // New cache structure for tab system
   interface RecordingCache {
@@ -151,6 +152,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const analysisRequestIdRef = useRef<number>(0);
 
   // Calculate view window size based on current zoom level
   const viewWindowSize = ZOOM_PRESETS[currentZoom].samples === -1
@@ -374,6 +376,146 @@ function App() {
     }
   };
 
+  const appendAssistantMessage = (content: string) => {
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content,
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, assistantMessage]);
+  };
+
+  const renderInlineMarkdown = (text: string): React.ReactNode[] => {
+    const parts: React.ReactNode[] = [];
+    const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let key = 0;
+
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+
+      const token = match[0];
+      if (token.startsWith('**') && token.endsWith('**')) {
+        parts.push(<strong key={`b-${key++}`}>{token.slice(2, -2)}</strong>);
+      } else if (token.startsWith('`') && token.endsWith('`')) {
+        parts.push(<code key={`c-${key++}`} className={styles.inlineCode}>{token.slice(1, -1)}</code>);
+      } else {
+        parts.push(token);
+      }
+
+      lastIndex = pattern.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    return parts;
+  };
+
+  const renderMarkdownMessage = (content: string): React.ReactNode => {
+    const lines = content.split('\n');
+    const nodes: React.ReactNode[] = [];
+    let inCodeBlock = false;
+    let codeBuffer: string[] = [];
+    let listBuffer: string[] = [];
+    let key = 0;
+
+    const flushList = () => {
+      if (listBuffer.length === 0) return;
+      nodes.push(
+        <ul key={`ul-${key++}`} className={styles.markdownList}>
+          {listBuffer.map((item, idx) => (
+            <li key={`li-${idx}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      );
+      listBuffer = [];
+    };
+
+    const flushCode = () => {
+      if (codeBuffer.length === 0) return;
+      nodes.push(
+        <pre key={`pre-${key++}`} className={styles.codeBlock}>
+          <code>{codeBuffer.join('\n')}</code>
+        </pre>
+      );
+      codeBuffer = [];
+    };
+
+    for (const line of lines) {
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          flushCode();
+          inCodeBlock = false;
+        } else {
+          flushList();
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeBuffer.push(line);
+        continue;
+      }
+
+      if (line.trim().startsWith('- ')) {
+        listBuffer.push(line.trim().slice(2));
+        continue;
+      }
+
+      flushList();
+
+      const trimmed = line.trim();
+      if (!trimmed) {
+        nodes.push(<div key={`sp-${key++}`} className={styles.markdownSpacer}></div>);
+        continue;
+      }
+
+      if (trimmed.startsWith('### ')) {
+        nodes.push(
+          <h5 key={`h3-${key++}`} className={styles.markdownH3}>
+            {renderInlineMarkdown(trimmed.slice(4))}
+          </h5>
+        );
+        continue;
+      }
+
+      if (trimmed.startsWith('## ')) {
+        nodes.push(
+          <h4 key={`h2-${key++}`} className={styles.markdownH2}>
+            {renderInlineMarkdown(trimmed.slice(3))}
+          </h4>
+        );
+        continue;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        nodes.push(
+          <h3 key={`h1-${key++}`} className={styles.markdownH1}>
+            {renderInlineMarkdown(trimmed.slice(2))}
+          </h3>
+        );
+        continue;
+      }
+
+      nodes.push(
+        <p key={`p-${key++}`} className={styles.markdownParagraph}>
+          {renderInlineMarkdown(trimmed)}
+        </p>
+      );
+    }
+
+    flushList();
+    flushCode();
+
+    return nodes;
+  };
+
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -590,6 +732,53 @@ function App() {
       setError(`Prediction error: ${e.message}`);
     } finally {
       setPredicting(false);
+    }
+  };
+
+  const runAgentAnalysis = async (filename: string) => {
+    if (predicting || analyzingAgent) return;
+
+    if (!predictions || predictions.length === 0) {
+      appendAssistantMessage('Run predictions first, then run analysis.');
+      return;
+    }
+
+    const requestId = analysisRequestIdRef.current + 1;
+    analysisRequestIdRef.current = requestId;
+
+    setAnalyzingAgent(true);
+    try {
+      const recordName = filename.replace('.dat', '');
+      const response = await fetch(`http://localhost:8000/api/agent/analyze/${recordName}`, {
+        method: 'POST'
+      });
+
+      let result: any = null;
+      try {
+        result = await response.json();
+      } catch {
+        result = null;
+      }
+
+      const fallbackMessage = `Analysis is currently unavailable for "${recordName}". Predictions are still available.`;
+      const analysisMessage = typeof result?.analysis === 'string' && result.analysis.trim().length > 0
+        ? result.analysis
+        : fallbackMessage;
+
+      if (analysisRequestIdRef.current === requestId) {
+        appendAssistantMessage(analysisMessage);
+      }
+    } catch (e) {
+      console.error('Error running agent analysis:', e);
+      if (analysisRequestIdRef.current === requestId) {
+        appendAssistantMessage(
+          `Analysis is currently unavailable for "${filename.replace('.dat', '')}". Predictions are still available.`
+        );
+      }
+    } finally {
+      if (analysisRequestIdRef.current === requestId) {
+        setAnalyzingAgent(false);
+      }
     }
   };
 
@@ -942,14 +1131,14 @@ function App() {
                   {predicting ? (
                     <div className={styles.predictionBadge}>
                       <div className={styles.badgeSpinner}></div>
-                      <span>Analyzing...</span>
+                      <span>Running predictions...</span>
                     </div>
                   ) : predictions.length === 0 && activeFile && !loading && !error && ecgData.length > 0 ? (
                     <button
                       className={styles.runAnalysisButton}
                       onClick={() => fetchPredictions(activeFile)}
                     >
-                      Run Analysis
+                      Run Predictions
                     </button>
                   ) : null}
                 </div>
@@ -1005,6 +1194,19 @@ function App() {
                     </button>
                   ))}
                 </div>
+
+                <button
+                  className={styles.agentActionButton}
+                  onClick={() => runAgentAnalysis(activeFile)}
+                  disabled={predicting || analyzingAgent || predictions.length === 0}
+                  title={
+                    predictions.length === 0
+                      ? 'Run predictions before analysis'
+                      : 'Run AI agent analysis'
+                  }
+                >
+                  {analyzingAgent ? 'Running Analysis...' : 'Run Analysis'}
+                </button>
 
                 {/* Analysis Overlay Toggle */}
                 {ecgData.length > 0 && (
@@ -1421,7 +1623,7 @@ function App() {
                   <div className={styles.messageHeader}>
                     {message.role.charAt(0).toUpperCase() + message.role.slice(1)}
                   </div>
-                  <div className={styles.messageContent}>{message.content}</div>
+                  <div className={styles.messageContent}>{renderMarkdownMessage(message.content)}</div>
                 </div>
               ))}
               <div ref={chatMessagesEndRef} />

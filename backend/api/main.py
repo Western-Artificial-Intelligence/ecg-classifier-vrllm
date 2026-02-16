@@ -13,6 +13,7 @@ import tensorflow as tf
 
 # Import project modules for prediction and Grad-CAM
 from backend.src import config
+from backend.src import agent
 from backend.src.utilities.preprocess import preprocess_with_cache
 from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
 
@@ -422,4 +423,35 @@ async def list_gradcam_images(filename: str):
 async def get_status():
     """Simple endpoint to check if the API is running."""
     return {"status": "ok", "message": "ECG Backend API is running."}
+
+
+@app.post("/api/agent/analyze/{filename}")
+async def analyze_record_with_agent(filename: str):
+    """
+    Generate one consolidated agent analysis for chat consumption.
+    Always returns 200 with either Gemini analysis or a fallback message.
+    """
+    record_name = filename.replace(".dat", "")
+    normalized_filename = f"{record_name}.dat"
+
+    try:
+        result = agent.generate_chat_analysis_for_record(record_name, visualize_count=3)
+        return {
+            "filename": normalized_filename,
+            "analysis": result["analysis"],
+            "source": "gemini",
+            "meta": result.get("meta", {"analyzed_minutes": 0}),
+        }
+    except Exception as e:
+        fallback_message = (
+            f"Analysis is currently unavailable for `{record_name}`. "
+            f"Predictions completed, but the agent could not produce a full Grad-CAM explanation. "
+            f"Reason: {str(e)}"
+        )
+        return {
+            "filename": normalized_filename,
+            "analysis": fallback_message,
+            "source": "fallback",
+            "meta": {"analyzed_minutes": 0},
+        }
 
