@@ -18,6 +18,7 @@ import argparse # Standard library for parsing command-line arguments
 from backend.src import train        # Module for model training functionalities
 from backend.src import evaluate     # Module for model evaluation and prediction functionalities
 from backend.src import preprocessing # Module for the main data preprocessing pipeline
+from backend.src import agent        # Module for AI-powered Grad-CAM analysis
 
 
 def main():
@@ -92,6 +93,17 @@ def main():
         help="Number of top confident segments to visualize."
     )
 
+    # --- 'agent' command parser ---
+    agent_parser = subparsers.add_parser(
+        "agent",
+        help="Run the Evaluator Agent to analyze Grad-CAM visualizations using AI."
+    )
+    agent_parser.add_argument(
+        "record_name",
+        type=str,
+        help="The base name of the ECG record to analyze (e.g., 'a01')."
+    )
+
     # Parse the command-line arguments provided by the user.
     args = parser.parse_args()
 
@@ -131,6 +143,12 @@ def main():
     elif args.command == "gradcam":
         # Invokes the Grad-CAM generation function from the `evaluate` module.
         evaluate.generate_gradcam_for_record(args.record_name, visualize_count=args.count)
+
+    elif args.command == "agent":
+        print(f"\n--- Running Evaluator Agent for Record: {args.record_name} ---")
+        # Invokes the AI-powered analysis function from the `agent` module.
+        agent.generate_report_for_record(args.record_name)
+        print(f"--- Agent Analysis Complete for Record: {args.record_name} ---")
 
     else:
         # If no command or an unknown command is provided, print the help message.

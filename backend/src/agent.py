@@ -7,10 +7,11 @@ It analyzes Grad-CAM visualizations to explain the model's predictions.
 import os
 import glob
 import textwrap
+from datetime import datetime
 import google.generativeai as genai
 from PIL import Image
-from src import config
-from src import evaluate
+from backend.src import config
+from backend.src import evaluate
 
 def configure_genai():
     """Configures the Gemini API with the key from config."""
@@ -76,10 +77,10 @@ def generate_report_for_record(record_name: str):
         print(f"Could not generate or find images for {record_name}.")
         return
 
-    print(f"Found {len(images)} visualizations for {record_name}. Starting analysis...")
+    print(f"Found {len(images)} visualizations for {record_name}. Starting analysis...", flush=True)
     
     report_content = f"# Evaluator Agent Report: {record_name}\n\n"
-    report_content += "Processing Date: " + os.popen('date').read().strip() + "\n\n" # varied by OS, maybe just skip date or use python datetime
+    report_content += f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
     for image_path in images:
         filename = os.path.basename(image_path)
@@ -95,7 +96,7 @@ def generate_report_for_record(record_name: str):
             prediction = parts[-2]
             minute = int(parts[-3].replace("min", ""))
             
-            print(f"Analyzing Minute {minute} ({prediction})...")
+            print(f"Analyzing Minute {minute} ({prediction})...", flush=True)
             analysis = analyze_image(image_path, record_name, minute, prediction, confidence)
             
             report_content += f"## Analysis: Minute {minute}\n"

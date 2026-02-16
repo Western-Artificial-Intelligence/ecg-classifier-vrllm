@@ -7,6 +7,9 @@ such as file paths, model parameters, and preprocessing settings.
 
 import os
 from multiprocessing import cpu_count
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # -- File Paths --
 # Using os.path.join for platform compatibility
@@ -24,6 +27,8 @@ MODELS_DIR = os.path.join("models")
 # Path to the results
 RESULTS_DIR = os.path.join("results")
 
+# Path to the Gemini API key
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # -- Preprocessing Settings --
 

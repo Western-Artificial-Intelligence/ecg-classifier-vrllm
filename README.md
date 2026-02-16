@@ -78,6 +78,10 @@ You can orchestrate ML stages (preprocessing, training, evaluation) via the CLI.
     ```powershell
     python -m backend.src.cli predict a01
     ```
+*   **Run Evaluator Agent**:
+    ```powershell
+    python -m backend.src.cli agent a01
+    ```
 
 ## Core Components
 
