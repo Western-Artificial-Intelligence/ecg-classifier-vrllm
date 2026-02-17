@@ -1377,3 +1377,531 @@
   background: #4f46e5;
   transform: translateY(-1px);
 }
+
+/* Analysis UI Decramp Overhaul Overrides */
+.appContainer {
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --border-color: #d7deea;
+  --bg-canvas: #f5f7fb;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f4f9;
+  --text-1: #1f2937;
+  --text-2: #4b5563;
+  --accent: #3b5bdb;
+  --accent-strong: #3347b7;
+  --shadow-soft: 0 6px 20px rgba(15, 23, 42, 0.08);
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-1);
+  background: var(--bg-canvas);
+}
+
+.mainLayout {
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.fileSelectionArea {
+  width: clamp(170px, 14vw, 220px);
+  min-width: clamp(170px, 14vw, 220px);
+  max-width: clamp(170px, 14vw, 220px);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+  transition: width 0.25s ease, min-width 0.25s ease, max-width 0.25s ease, padding 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fileSelectionArea.collapsed {
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  opacity: 0;
+  transform: translateX(-20px);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.middleColumn {
+  gap: var(--space-4);
+  min-height: 0;
+  position: relative;
+}
+
+.ecgDisplayArea,
+.patientInfoBox,
+.chatWindowArea {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.ecgDisplayArea {
+  flex: 1 1 420px;
+  min-height: 360px;
+}
+
+.ecgChartWrapper {
+  min-height: 260px;
+}
+
+.patientInfoBox {
+  max-height: 38vh;
+  overflow: auto;
+}
+
+.tabBar {
+  position: sticky;
+  top: 0;
+  z-index: 22;
+  min-height: 56px;
+  height: auto;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+.panelToggleOpen {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 35;
+}
+
+.panelToggleCollapsed {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 35;
+}
+
+.tabList {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  align-self: flex-start;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  height: auto;
+  min-height: 26px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  border-bottom-width: 1px;
+}
+
+.tabIcon {
+  font-size: 0.8rem;
+}
+
+.tabTitle {
+  max-width: 110px;
+}
+
+.tabClose {
+  width: 14px;
+  height: 14px;
+  font-size: 0.85rem;
+  margin-left: 2px;
+}
+
+.tabBarActions {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.toolbarMenu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 860px;
+}
+
+.toolbarCompactToggle {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-2);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toolbarCompactToggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toolbarControlRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.toolbarSelectGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toolbarSelectLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+
+.toolbarSelect {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-1);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.toolbarSelect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.toolbarActionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.viewControls {
+  display: none;
+}
+
+.viewModeTabs,
+.zoomControls,
+.toolbarRunActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.toolbarRunActions {
+  margin-left: auto;
+}
+
+.viewModeTabs {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+}
+
+.viewModeTab,
+.zoomButton,
+.agentActionButton,
+.overlayToggle,
+.chatToggleButton {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: #fff;
+  color: var(--text-2);
+}
+
+.viewModeTab.active,
+.zoomButton.active,
+.overlayToggle.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.runAnalysisButton,
+.runButton,
+.explainButton,
+.generateAllButton,
+.toastButton {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: none;
+}
+
+.runAnalysisButton:hover,
+.runButton:hover,
+.explainButton:hover:not(:disabled),
+.generateAllButton:hover:not(:disabled),
+.toastButton:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  filter: none;
+}
+
+.chatToggleButton {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toolbarActionRow .runAnalysisButton,
+.toolbarActionRow .agentActionButton,
+.toolbarActionRow .chatToggleButton {
+  width: auto;
+  min-width: 170px;
+  margin-top: 0;
+  height: 34px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.toolbarActionRow .chatToggleButton {
+  min-width: 150px;
+}
+
+.toolbarActionRow .toolbarCompactToggle {
+  min-width: auto;
+  width: auto;
+}
+
+.chatColumn {
+  width: auto;
+  min-width: 260px;
+  max-width: clamp(280px, 24vw, 360px);
+  flex: 0 0 clamp(280px, 24vw, 360px);
+  gap: var(--space-3);
+  transition: flex-basis 0.25s ease, max-width 0.25s ease, min-width 0.25s ease;
+}
+
+.chatColumn.collapsed {
+  min-width: 56px;
+  max-width: 56px;
+  flex-basis: 56px;
+}
+
+.chatCollapsedToggle {
+  width: 100%;
+  height: 56px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--accent);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.chatWindowHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.chatWindowArea h2 {
+  margin: 0;
+}
+
+.chatWindowArea {
+  padding: var(--space-4);
+}
+
+.chatMessages {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: #fcfdff;
+}
+
+.chatMessage,
+.patientInfoRow,
+.statItem,
+.minuteRow,
+.metricRow {
+  border-left: none;
+  border: 1px solid #e9edf5;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.patientInfoBox {
+  padding: var(--space-4);
+}
+
+.patientInfoBox h3 {
+  margin-bottom: var(--space-4);
+}
+
+.patientInfoToggleRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.patientInfoToggleButton {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-2);
+  font-weight: 700;
+  font-size: 0.78rem;
+  height: 30px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.patientInfoToggleButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabHeaders {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+}
+
+.tabContent {
+  min-height: 240px;
+}
+
+.predictionSummary,
+.apneicMinutesList,
+.noPredictions,
+.noApneicMinutes,
+.noMetrics {
+  border: 1px solid var(--border-color);
+  background: #fbfcff;
+  box-shadow: none;
+}
+
+.chatInputArea {
+  border: 1px solid var(--border-color);
+  box-shadow: none;
+}
+
+@media (max-width: 1400px) {
+  .mainLayout {
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .fileSelectionArea {
+    width: clamp(160px, 16vw, 205px);
+    min-width: clamp(160px, 16vw, 205px);
+    max-width: clamp(160px, 16vw, 205px);
+  }
+
+  .tabBarActions {
+    gap: 6px;
+  }
+
+  .toolbarMenu {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 1200px) {
+  .mainLayout {
+    flex-wrap: wrap;
+    overflow: auto;
+  }
+
+  .fileSelectionArea {
+    flex: 1 1 240px;
+    max-width: none;
+  }
+
+  .middleColumn {
+    flex: 1 1 calc(100% - 260px);
+  }
+
+  .patientInfoBox {
+    max-height: none;
+  }
+
+  .chatColumn {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .mainLayout {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .fileSelectionArea,
+  .middleColumn,
+  .chatColumn,
+  .chatColumn.collapsed {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .chatCollapsedToggle {
+    height: 44px;
+  }
+
+  .tabBarActions {
+    justify-content: flex-start;
+  }
+
+  .toolbarControlRow {
+    grid-template-columns: 1fr;
+  }
+
+  .fileSelectionArea.collapsed {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+  }
+
+  .panelToggleOpen,
+  .panelToggleCollapsed {
+    left: 6px;
+    top: 8px;
+    transform: none;
+  }
+
+  .ecgDisplayArea {
+    min-height: 300px;
+  }
+
+  .ecgChartWrapper {
+    min-height: 220px;
+  }
+}

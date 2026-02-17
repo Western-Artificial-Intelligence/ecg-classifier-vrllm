@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from '../styles/App.module.css';
 import EcgChart from './EcgChart';
 import MinimapView from './MinimapView';
@@ -77,6 +78,7 @@ interface ECGStats {
 
 type ZoomLevel = 'DETAIL' | 'MINUTE_1' | 'MINUTE_5' | 'FULL';
 type ViewMode = 'waveform' | 'minimap' | 'summary';
+type PrimaryToolbarAction = 'run_predictions' | 'run_analysis';
 
 const ZOOM_PRESETS = {
   DETAIL: { label: '1x (Detail)', samples: 500 },
@@ -86,11 +88,13 @@ const ZOOM_PRESETS = {
 };
 
 function App() {
+  const navigate = useNavigate();
   const [ecgData, setEcgData] = useState<number[]>([]);
   const [startIndex, setStartIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPanelsCollapsed, setIsPanelsCollapsed] = useState<boolean>(false);
+  const [isFilePanelCollapsed, setIsFilePanelCollapsed] = useState<boolean>(false);
+  const [isPatientInfoCollapsed, setIsPatientInfoCollapsed] = useState<boolean>(false);
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(['ECG Recordings']));
   const [activeFile, setActiveFile] = useState<string>('a01.dat');
   const [chatInput, setChatInput] = useState<string>('');
@@ -141,10 +145,12 @@ function App() {
   const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes' | 'physio'>('details');
   const [gradcamQueue, setGradcamQueue] = useState<Set<number>>(new Set());
   const [gradcamNotifications, setGradcamNotifications] = useState<Array<{ minute: number, id: string }>>([]);
-  const [showAnalysisOverlay, setShowAnalysisOverlay] = useState<boolean>(true);
+  const [showAnalysisOverlay] = useState<boolean>(true);
   const [ecgStats, setEcgStats] = useState<ECGStats | null>(null);
   const [generatingAll, setGeneratingAll] = useState<boolean>(false);
   const [generationProgress, setGenerationProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 });
+  const [isChatCollapsed, setIsChatCollapsed] = useState<boolean>(true);
+  const [isToolbarExpanded, setIsToolbarExpanded] = useState<boolean>(false);
 
   // Helper function to create cache key
   const getCacheKey = (filename: string, minute: number) => `${filename}_${minute}`;
@@ -173,6 +179,48 @@ function App() {
 
   // Get the currently active tab
   const activeTab = tabs.find(t => t.id === activeTabId);
+  const hasActiveEcgTab = !!(activeTab && activeTab.type === 'ecg');
+  const canUseEcgControls = hasActiveEcgTab && !loading && !error;
+  const canRunPredictions = hasActiveEcgTab && !!activeFile && !loading && !error && ecgData.length > 0;
+  const primaryToolbarAction: PrimaryToolbarAction = predictions.length > 0 ? 'run_analysis' : 'run_predictions';
+  const isToolbarMenuVisible = isToolbarExpanded;
+
+  const handleFilePanelToggle = () => {
+    setIsFilePanelCollapsed(prev => {
+      const nextCollapsed = !prev;
+      if (!nextCollapsed) {
+        // Opening left panel collapses right panel.
+        setIsChatCollapsed(true);
+      }
+      return nextCollapsed;
+    });
+  };
+
+  const handlePatientInfoToggle = () => {
+    setIsPatientInfoCollapsed(prev => {
+      const nextCollapsed = !prev;
+      if (!nextCollapsed) {
+        // Opening bottom panel collapses top controls.
+        setIsToolbarExpanded(false);
+      }
+      return nextCollapsed;
+    });
+  };
+
+  const handleChatToggleFromToolbar = () => {
+    setIsChatCollapsed(prev => {
+      const nextCollapsed = !prev;
+      if (!nextCollapsed) {
+        setIsFilePanelCollapsed(true);
+      }
+      return nextCollapsed;
+    });
+  };
+
+  const handleOpenChat = () => {
+    setIsFilePanelCollapsed(true);
+    setIsChatCollapsed(false);
+  };
 
   // Scroll to bottom of chat when new messages arrive
   useEffect(() => {
@@ -1011,9 +1059,8 @@ function App() {
     <div className={styles.appContainer}>
       <div className={styles.mainLayout}>
         {/* Left sidebar: File Selection */}
-        {!isPanelsCollapsed && (
-          <div className={styles.fileSelectionArea}>
-            <button className={styles.backButton}>← Back to Patients</button>
+        <div className={`${styles.fileSelectionArea} ${isFilePanelCollapsed ? styles.collapsed : ''}`}>
+            <button className={styles.backButton} onClick={() => navigate('/')}>Back to Patients</button>
             <h3>Patient: John Doe</h3>
             <button className={styles.addFileButton} onClick={handleAddFileClick}>
               + Add New File
@@ -1075,31 +1122,28 @@ function App() {
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* Toggle Button */}
-        <button
-          className={styles.togglePanelsButton}
-          onClick={() => setIsPanelsCollapsed(!isPanelsCollapsed)}
-          title={isPanelsCollapsed ? "Show panels" : "Hide panels"}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {isPanelsCollapsed ? (
-              <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            ) : (
-              <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            )}
-          </svg>
-        </button>
+        </div>
 
         {/* Middle column: ECG Display and Patient Info */}
-        <div className={`${styles.middleColumn} ${isPanelsCollapsed ? styles.expanded : ''}`}>
+        <div className={`${styles.middleColumn} ${isFilePanelCollapsed ? styles.expanded : ''}`}>
+          <button
+            className={`${styles.togglePanelsButton} ${isFilePanelCollapsed ? styles.panelToggleCollapsed : styles.panelToggleOpen}`}
+            onClick={handleFilePanelToggle}
+            title={isFilePanelCollapsed ? "Show file panel" : "Hide file panel"}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {isFilePanelCollapsed ? (
+                <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              ) : (
+                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+            </svg>
+          </button>
+
           {/* ECG Display */}
           <div className={styles.ecgDisplayArea}>
             {/* Tab Bar */}
-            {tabs.length > 0 && (
-              <div className={styles.tabBar}>
+            <div className={styles.tabBar}>
                 <div className={styles.tabList}>
                   {tabs.map(tab => (
                     <div
@@ -1128,99 +1172,103 @@ function App() {
                   ))}
                 </div>
                 <div className={styles.tabBarActions}>
-                  {predicting ? (
-                    <div className={styles.predictionBadge}>
-                      <div className={styles.badgeSpinner}></div>
-                      <span>Running predictions...</span>
-                    </div>
-                  ) : predictions.length === 0 && activeFile && !loading && !error && ecgData.length > 0 ? (
+                  {!isToolbarMenuVisible && (
                     <button
-                      className={styles.runAnalysisButton}
-                      onClick={() => fetchPredictions(activeFile)}
-                    >
-                      Run Predictions
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            )}
-
-            {/* View Controls - Only show for ECG tabs */}
-            {activeTab && activeTab.type === 'ecg' && !loading && !error && (
-              <div className={styles.viewControls}>
-                {/* View Mode Tabs */}
-                <div className={styles.viewModeTabs}>
-                  <button
-                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'waveform' ? styles.active : ''}`}
-                    onClick={() => {
-                      setViewMode('waveform');
-                      updateActiveTab({ viewMode: 'waveform' });
-                    }}
-                  >
-                    Waveform
-                  </button>
-                  <button
-                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'minimap' ? styles.active : ''}`}
-                    onClick={() => {
-                      setViewMode('minimap');
-                      updateActiveTab({ viewMode: 'minimap' });
-                    }}
-                  >
-                    Minimap
-                  </button>
-                  <button
-                    className={`${styles.viewModeTab} ${(activeTab?.viewMode || viewMode) === 'summary' ? styles.active : ''}`}
-                    onClick={() => {
-                      setViewMode('summary');
-                      updateActiveTab({ viewMode: 'summary' });
-                    }}
-                  >
-                    Summary
-                  </button>
-                </div>
-
-                {/* Zoom Preset Buttons */}
-                <div className={styles.zoomControls}>
-                  {(Object.keys(ZOOM_PRESETS) as ZoomLevel[]).map((zoomKey) => (
-                    <button
-                      key={zoomKey}
-                      className={`${styles.zoomButton} ${(activeTab?.zoom || currentZoom) === zoomKey ? styles.active : ''}`}
+                      className={styles.toolbarCompactToggle}
                       onClick={() => {
-                        setCurrentZoom(zoomKey);
-                        updateActiveTab({ zoom: zoomKey });
+                        // Opening top controls collapses bottom panel.
+                        setIsPatientInfoCollapsed(true);
+                        setIsToolbarExpanded(true);
                       }}
+                      title="Show analysis controls"
                     >
-                      {ZOOM_PRESETS[zoomKey].label}
+                      Show Controls
                     </button>
-                  ))}
+                  )}
+
+                  {isToolbarMenuVisible && (
+                    <div className={styles.toolbarMenu}>
+                    <div className={styles.toolbarControlRow}>
+                      <div className={styles.toolbarSelectGroup}>
+                        <label htmlFor="viewModeSelect" className={styles.toolbarSelectLabel}>View</label>
+                        <select
+                          id="viewModeSelect"
+                          className={styles.toolbarSelect}
+                          value={activeTab?.viewMode || viewMode}
+                          onChange={(e) => {
+                            const selectedMode = e.target.value as ViewMode;
+                            setViewMode(selectedMode);
+                            updateActiveTab({ viewMode: selectedMode });
+                          }}
+                          disabled={!canUseEcgControls}
+                        >
+                          <option value="waveform">Waveform</option>
+                          <option value="minimap">Minimap</option>
+                          <option value="summary">Summary</option>
+                        </select>
+                      </div>
+
+                      <div className={styles.toolbarSelectGroup}>
+                        <label htmlFor="zoomLevelSelect" className={styles.toolbarSelectLabel}>Detail</label>
+                        <select
+                          id="zoomLevelSelect"
+                          className={styles.toolbarSelect}
+                          value={activeTab?.zoom || currentZoom}
+                          onChange={(e) => {
+                            const selectedZoom = e.target.value as ZoomLevel;
+                            setCurrentZoom(selectedZoom);
+                            updateActiveTab({ zoom: selectedZoom });
+                          }}
+                          disabled={!canUseEcgControls}
+                        >
+                          {(Object.keys(ZOOM_PRESETS) as ZoomLevel[]).map((zoomKey) => (
+                            <option key={zoomKey} value={zoomKey}>
+                              {ZOOM_PRESETS[zoomKey].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className={styles.toolbarActionRow}>
+                      <button
+                        className={styles.runAnalysisButton}
+                        onClick={() => fetchPredictions(activeFile)}
+                        disabled={!canRunPredictions || predicting}
+                      >
+                        {predicting ? 'Running Predictions...' : (primaryToolbarAction === 'run_predictions' ? 'Run Predictions' : 'Re-run Predictions')}
+                      </button>
+                      <button
+                        className={styles.agentActionButton}
+                        onClick={() => runAgentAnalysis(activeFile)}
+                        disabled={predicting || analyzingAgent || predictions.length === 0}
+                        title={
+                          predictions.length === 0
+                            ? 'Run predictions before analysis'
+                            : 'Run AI agent analysis'
+                        }
+                      >
+                        {analyzingAgent ? 'Running Analysis...' : 'Run Analysis'}
+                      </button>
+                      <button
+                        className={styles.chatToggleButton}
+                        onClick={handleChatToggleFromToolbar}
+                        title={isChatCollapsed ? 'Open AI chat panel' : 'Collapse AI chat panel'}
+                      >
+                        {isChatCollapsed ? 'Open Chat' : 'Hide Chat'}
+                      </button>
+                      <button
+                        className={styles.toolbarCompactToggle}
+                        onClick={() => setIsToolbarExpanded(false)}
+                        title="Collapse analysis controls"
+                      >
+                        Collapse Controls
+                      </button>
+                    </div>
+                  </div>
+                  )}
                 </div>
-
-                <button
-                  className={styles.agentActionButton}
-                  onClick={() => runAgentAnalysis(activeFile)}
-                  disabled={predicting || analyzingAgent || predictions.length === 0}
-                  title={
-                    predictions.length === 0
-                      ? 'Run predictions before analysis'
-                      : 'Run AI agent analysis'
-                  }
-                >
-                  {analyzingAgent ? 'Running Analysis...' : 'Run Analysis'}
-                </button>
-
-                {/* Analysis Overlay Toggle */}
-                {ecgData.length > 0 && (
-                  <button
-                    className={`${styles.overlayToggle} ${showAnalysisOverlay ? styles.active : ''}`}
-                    onClick={() => setShowAnalysisOverlay(!showAnalysisOverlay)}
-                    title={showAnalysisOverlay ? "Hide analysis overlay" : "Show analysis overlay"}
-                  >
-                    {showAnalysisOverlay ? '👁️ Hide Overlay' : '👁️ Show Overlay'}
-                  </button>
-                )}
-
               </div>
-            )}
 
             {/* Content rendering based on active tab */}
             {activeTab && activeTab.type === 'ecg' && (
@@ -1287,6 +1335,24 @@ function App() {
               </>
             )}
 
+            {!activeTab && (
+              <>
+                <div className={styles.ecgChartPlaceholder}>No recording selected. Select a .dat file to display waveform.</div>
+                <div className={styles.ecgTimelineControl}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={0}
+                    value={0}
+                    onChange={() => { }}
+                    className={styles.timelineSlider}
+                    disabled={true}
+                  />
+                  <p>Viewing samples 0 to 0 of 0</p>
+                </div>
+              </>
+            )}
+
             {/* Grad-CAM Tab Rendering */}
             {activeTab && activeTab.type === 'gradcam' && activeTab.gradcamData && (
               <div className={styles.gradcamViewer}>
@@ -1328,8 +1394,18 @@ function App() {
             )}
           </div>
 
+          <div className={styles.patientInfoToggleRow}>
+            <button
+              className={styles.patientInfoToggleButton}
+              onClick={handlePatientInfoToggle}
+              title={isPatientInfoCollapsed ? 'Show patient information panel' : 'Hide patient information panel'}
+            >
+              {isPatientInfoCollapsed ? 'Show Patient Info' : 'Hide Patient Info'}
+            </button>
+          </div>
+
           {/* Patient Information Box */}
-          {!isPanelsCollapsed && (
+          {!isPatientInfoCollapsed && (
             <div className={styles.patientInfoBox}>
               <h3>Patient Information</h3>
 
@@ -1411,13 +1487,7 @@ function App() {
                       </>
                     ) : (
                       <div className={styles.noPredictions}>
-                        <p>No predictions available yet.</p>
-                        <button
-                          className={styles.runButton}
-                          onClick={() => fetchPredictions(activeFile)}
-                        >
-                          Run Prediction
-                        </button>
+                        <p>No predictions available yet. Use the toolbar action to run predictions.</p>
                       </div>
                     )}
                   </div>
@@ -1596,14 +1666,6 @@ function App() {
                     ) : (
                       <div className={styles.noMetrics}>
                         <p>No physiological metrics available yet.</p>
-                        {!predicting && predictions.length === 0 && (
-                          <button
-                            className={styles.runButton}
-                            onClick={() => fetchPredictions(activeFile)}
-                          >
-                            Run Analysis
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1614,43 +1676,64 @@ function App() {
         </div>
 
         {/* Right column: Chat Window with input */}
-        <div className={styles.chatColumn}>
-          <div className={styles.chatWindowArea}>
-            <h2>AI Assistant</h2>
-            <div className={styles.chatMessages}>
-              {chatMessages.map((message, index) => (
-                <div key={index} className={styles.chatMessage}>
-                  <div className={styles.messageHeader}>
-                    {message.role.charAt(0).toUpperCase() + message.role.slice(1)}
-                  </div>
-                  <div className={styles.messageContent}>{renderMarkdownMessage(message.content)}</div>
-                </div>
-              ))}
-              <div ref={chatMessagesEndRef} />
-            </div>
-          </div>
-
-          {/* Chat Input Box */}
-          <div className={styles.chatInputArea}>
-            <input
-              type="text"
-              className={styles.chatInput}
-              placeholder="Type your question or command here..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
+        <div className={`${styles.chatColumn} ${isChatCollapsed ? styles.collapsed : ''}`}>
+          {isChatCollapsed ? (
             <button
-              className={styles.sendArrowButton}
-              title="Send"
-              onClick={handleSendMessage}
+              className={styles.chatCollapsedToggle}
+              onClick={handleOpenChat}
+              title="Open AI assistant panel"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              AI
             </button>
-          </div>
+          ) : (
+            <>
+              <div className={styles.chatWindowArea}>
+                <div className={styles.chatWindowHeader}>
+                  <h2>AI Assistant</h2>
+                  <button
+                    className={styles.chatToggleButton}
+                    onClick={() => setIsChatCollapsed(true)}
+                    title="Collapse AI chat panel"
+                  >
+                    Hide
+                  </button>
+                </div>
+                <div className={styles.chatMessages}>
+                  {chatMessages.map((message, index) => (
+                    <div key={index} className={styles.chatMessage}>
+                      <div className={styles.messageHeader}>
+                        {message.role.charAt(0).toUpperCase() + message.role.slice(1)}
+                      </div>
+                      <div className={styles.messageContent}>{renderMarkdownMessage(message.content)}</div>
+                    </div>
+                  ))}
+                  <div ref={chatMessagesEndRef} />
+                </div>
+              </div>
+
+              {/* Chat Input Box */}
+              <div className={styles.chatInputArea}>
+                <input
+                  type="text"
+                  className={styles.chatInput}
+                  placeholder="Type your question or command here..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                />
+                <button
+                  className={styles.sendArrowButton}
+                  title="Send"
+                  onClick={handleSendMessage}
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1673,3 +1756,4 @@ function App() {
 }
 
 export default App;
+
