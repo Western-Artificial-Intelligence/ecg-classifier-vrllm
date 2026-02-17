@@ -236,3 +236,68 @@
   }
 }
 
+/* Dark Theme Overrides */
+.title,
+.benefitsTitle,
+.techniqueTitle {
+  color: #f5f7fb;
+}
+
+.subtitle,
+.techniqueDescription,
+.exampleText,
+.benefitItem {
+  color: #9ca6b8;
+}
+
+.techniqueCard,
+.benefitItem,
+.techniqueExample {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.techniqueCard:hover,
+.benefitItem:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+/* Harmonized Token Overrides */
+.explainability,
+.explainabilityContainer {
+  color: var(--text-1);
+}
+
+.sectionLabel {
+  color: var(--accent-violet);
+  border-color: rgba(123, 137, 255, 0.4);
+}
+
+.techniqueCard,
+.benefitItem,
+.techniqueExample {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.techniqueCard:hover,
+.benefitItem:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+/* Final Section Flow Fixes */
+.explainability {
+  background: transparent;
+}
+
+.subtitle,
+.techniqueDescription,
+.exampleText,
+.benefitItem,
+.heatmapLabels,
+.heatmapLegend {
+  color: var(--text-2);
+}
+

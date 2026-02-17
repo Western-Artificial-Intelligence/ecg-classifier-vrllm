@@ -1,11 +1,9 @@
-/* Google Fonts Import - Inter + Playfair Display (Serif) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 @layer base {
   @tailwind base;
@@ -13,21 +11,38 @@
   @tailwind utilities;
 
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --bg-canvas: #0f141c;
+    --bg-elev-1: #141b25;
+    --bg-elev-2: #192231;
+    --bg-glass: rgba(20, 27, 37, 0.82);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text-1: #eef2fb;
+    --text-2: #b3bdd0;
+    --text-3: #8894aa;
+    --accent-violet: #7b89ff;
+    --accent-violet-strong: #6678ff;
+    --accent-teal: #42c7c6;
+    --accent-teal-strong: #2fb6b5;
+    --success: #2fb6b5;
+    --warning: #f59e0b;
+    --error: #ef4444;
+
+    --background: 216 28% 9%;
+    --foreground: 223 53% 95%;
+    --card: 216 25% 12%;
+    --card-foreground: 223 53% 95%;
+    --primary: 231 100% 74%;
+    --primary-foreground: 225 45% 97%;
+    --secondary: 218 22% 17%;
+    --secondary-foreground: 222 34% 84%;
+    --muted: 218 18% 20%;
+    --muted-foreground: 218 17% 66%;
+    --accent: 231 100% 74%;
+    --accent-foreground: 225 45% 97%;
+    --border: 216 16% 30%;
+    --input: 216 16% 30%;
+    --ring: 231 100% 74%;
     --radius: 0.75rem;
   }
 }
@@ -43,7 +58,9 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-1);
   }
 }
 
@@ -57,19 +74,21 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 rounded-full;
+  background: rgba(123, 137, 255, 0.4);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400;
+  background: rgba(123, 137, 255, 0.58);
 }
 
 ::selection {
-  @apply bg-blue-100 text-blue-900;
+  background: rgba(123, 137, 255, 0.3);
+  color: #eef2fb;
 }
 
 /* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid #3B82F6;
+  outline: 2px solid var(--accent-violet);
   outline-offset: 2px;
 }

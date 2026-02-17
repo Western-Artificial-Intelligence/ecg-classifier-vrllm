@@ -221,3 +221,77 @@
   }
 }
 
+/* Dark Theme Overrides */
+.title,
+.metricsTitle,
+.highlightTitle,
+.layerTitle {
+  color: #f5f7fb;
+}
+
+.subtitle,
+.metricDescription,
+.highlightText,
+.layerDetails {
+  color: #9ca6b8;
+}
+
+.modelDiagram,
+.layerBox,
+.metricCard,
+.highlight {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.layerBox:hover,
+.metricCard:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+.metricValue {
+  background: linear-gradient(180deg, #c9d1ff 0%, #aeb9ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Harmonized Token Overrides */
+.model,
+.modelContainer {
+  color: var(--text-1);
+}
+
+.sectionLabel {
+  color: var(--accent-violet);
+  border-color: rgba(123, 137, 255, 0.4);
+}
+
+.modelDiagram,
+.layerBox,
+.metricCard,
+.highlight {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.layerBox:hover,
+.metricCard:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+/* Final Section Flow Fixes */
+.model {
+  background: transparent;
+}
+
+.subtitle,
+.metricDescription,
+.highlightText,
+.layerDetails,
+.metricLabel {
+  color: var(--text-2);
+}
+

@@ -161,3 +161,59 @@
   }
 }
 
+/* Dark Theme Overrides */
+.title,
+.stepTitle {
+  color: #f5f7fb;
+}
+
+.stepDescription {
+  color: #9ca6b8;
+}
+
+.step,
+.detail {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.step:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+.detail {
+  color: #c8d0e0;
+}
+
+/* Harmonized Token Overrides */
+.architecture,
+.architectureContainer {
+  color: var(--text-1);
+}
+
+.sectionLabel {
+  color: var(--accent-violet);
+  border-color: rgba(123, 137, 255, 0.4);
+}
+
+.step,
+.detail {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.step:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+.stepNumber {
+  background: linear-gradient(180deg, #8f9cff 0%, var(--accent-violet) 100%);
+}
+
+/* Final Section Flow Fixes */
+.architecture {
+  background: transparent;
+}
+

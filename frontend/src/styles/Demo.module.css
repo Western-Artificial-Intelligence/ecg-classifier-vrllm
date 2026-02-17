@@ -474,3 +474,89 @@
   }
 }
 
+/* Dark Theme Overrides */
+.title,
+.scoreValue,
+.findingLabel,
+.recommendationContent strong {
+  color: #f5f7fb;
+}
+
+.subtitle,
+.patientInfo,
+.chartLabel,
+.recommendationContent,
+.findingText,
+.scoreMax {
+  color: #9ca6b8;
+}
+
+.demoCard,
+.demoTabs,
+.explanationCard,
+.demoFooter,
+.riskChart,
+.ecgView,
+.explanationView,
+.finding {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.tab:hover,
+.controlBtn:hover,
+.bar:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  background: rgba(120, 134, 255, 0.16);
+}
+
+/* Harmonized Token Overrides */
+.demo,
+.demoContainer {
+  color: var(--text-1);
+}
+
+.sectionLabel {
+  color: var(--accent-violet);
+  border-color: rgba(123, 137, 255, 0.4);
+}
+
+.demoCard,
+.demoTabs,
+.explanationCard,
+.demoFooter,
+.riskChart,
+.ecgView,
+.explanationView,
+.finding {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.tab,
+.controlBtn {
+  color: var(--text-2);
+  border-color: var(--border-subtle);
+}
+
+.tryButton {
+  background: linear-gradient(180deg, #8f9cff 0%, var(--accent-violet) 100%);
+}
+
+/* Final Section Flow Fixes */
+.demo {
+  background: transparent;
+}
+
+.subtitle,
+.patientInfo,
+.chartLabel,
+.recommendationContent,
+.findingText,
+.scoreMax,
+.statLabel,
+.statValue,
+.recommendationContent p {
+  color: var(--text-2);
+}
+

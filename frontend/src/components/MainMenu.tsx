@@ -7,6 +7,13 @@ const MainMenu: React.FC = () => {
 
   return (
     <main className={styles.mainMenuPage}>
+      <header className={styles.topBar}>
+        <div className={styles.brand}>
+          <span className={styles.brandDot}></span>
+          <span>NeuralApnea</span>
+        </div>
+      </header>
+
       <div className={styles.bgEffects} aria-hidden="true">
         <div className={styles.blurBlob1}></div>
         <div className={styles.blurBlob2}></div>
@@ -14,6 +21,7 @@ const MainMenu: React.FC = () => {
 
       <section className={styles.menuCard} aria-label="Main Menu">
         <h1 className={styles.title}>NeuralApnea Triage</h1>
+        <p className={styles.subtitle}>Sleep ECG triage workspace</p>
         <div className={styles.actions}>
           <button
             type="button"

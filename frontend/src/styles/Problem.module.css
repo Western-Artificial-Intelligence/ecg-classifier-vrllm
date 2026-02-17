@@ -163,3 +163,64 @@
   }
 }
 
+/* Dark Theme Overrides */
+.title,
+.solutionTitle,
+.problemTitle {
+  color: #f5f7fb;
+}
+
+.description,
+.problemText,
+.solutionText {
+  color: #9ca6b8;
+}
+
+.problemCard,
+.solution,
+.solutionBadge {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.problemCard:hover,
+.solution:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+/* Harmonized Token Overrides */
+.problem,
+.problemContainer {
+  color: var(--text-1);
+}
+
+.sectionLabel,
+.solutionBadge {
+  color: var(--accent-violet);
+  border-color: rgba(123, 137, 255, 0.4);
+}
+
+.problemCard,
+.solution {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.problemCard:hover,
+.solution:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+/* Final Section Flow Fixes */
+.problem {
+  background: transparent;
+}
+
+.description,
+.problemText,
+.solutionText {
+  color: var(--text-2);
+}
+

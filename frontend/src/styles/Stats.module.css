@@ -83,3 +83,56 @@
   }
 }
 
+/* Dark Theme Overrides */
+.badge,
+.statCard {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.dataset,
+.statLabel {
+  color: #9ca6b8;
+}
+
+.statValue {
+  background: linear-gradient(180deg, #c9d1ff 0%, #aeb9ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.statCard:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+/* Harmonized Token Overrides */
+.stats,
+.statsContainer {
+  color: var(--text-1);
+}
+
+.badge,
+.statCard {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.dataset,
+.statLabel {
+  color: var(--text-2);
+}
+
+.statCard:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+/* Final Section Flow Fixes */
+.stats {
+  background: transparent;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+

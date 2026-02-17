@@ -270,6 +270,81 @@
   color: #ef4444;
 }
 
+/* Dark Theme Overrides */
+.headline {
+  color: #f5f7fb;
+}
+
+.subheadline,
+.metricLabel,
+.cardStatus,
+.timelineLabels {
+  color: #9ca6b8;
+}
+
+.secondaryCta,
+.cardTab.active,
+.productCard,
+.cardHeader,
+.cardBody,
+.cardFooter,
+.riskTimeline {
+  background: rgba(17, 20, 28, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d8dff0;
+}
+
+.secondaryCta:hover,
+.productCard:hover,
+.cardTab:hover {
+  border-color: rgba(170, 181, 255, 0.68);
+  background: rgba(120, 134, 255, 0.16);
+}
+
+/* Harmonized Token Overrides */
+.hero,
+.heroContainer {
+  color: var(--text-1);
+}
+
+.heroVisual,
+.productCard,
+.cardHeader,
+.cardBody,
+.cardFooter {
+  background: var(--bg-glass);
+  border-color: var(--border-subtle);
+}
+
+.badge,
+.cardTab {
+  color: var(--text-2);
+  border-color: var(--border-subtle);
+}
+
+.primaryCta {
+  background: linear-gradient(180deg, #8f9cff 0%, var(--accent-violet) 100%);
+}
+
+.primaryCta:hover,
+.secondaryCta:hover,
+.productCard:hover {
+  transform: translateY(-1px);
+}
+
+/* Final Section Flow Fixes */
+.hero {
+  background: transparent;
+}
+
+.subheadline,
+.metricLabel,
+.cardStatus,
+.timelineLabels,
+.metricValue {
+  color: var(--text-2);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .heroContainer {
