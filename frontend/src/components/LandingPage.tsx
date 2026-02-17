@@ -26,7 +26,7 @@ const LandingPage: React.FC = () => {
   }, []);
 
   const handleDemoClick = () => {
-    navigate('/analysis');
+    navigate('/menu');
   };
 
   return (

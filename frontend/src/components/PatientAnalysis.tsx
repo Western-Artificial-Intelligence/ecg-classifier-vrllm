@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import styles from '../styles/App.module.css';
 import EcgChart from './EcgChart';
 import MinimapView from './MinimapView';
@@ -17,6 +17,16 @@ interface PatientFile {
   folder: string;
   date: Date;
   file?: File; // The actual file object if uploaded
+}
+
+interface SelectedPatient {
+  id: string;
+  name: string;
+  displayId: string;
+}
+
+interface AnalysisLocationState {
+  selectedPatient?: unknown;
 }
 
 interface Prediction {
@@ -87,8 +97,33 @@ const ZOOM_PRESETS = {
   FULL: { label: 'Full Record', samples: -1 } // -1 means all samples
 };
 
+const DEFAULT_SELECTED_PATIENT: SelectedPatient = {
+  id: 'default-patient',
+  name: 'John Doe',
+  displayId: 'P-2024-001'
+};
+
+const isSelectedPatient = (value: unknown): value is SelectedPatient => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.displayId === 'string'
+  );
+};
+
 function App() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedPatientCandidate = (location.state as AnalysisLocationState | null)?.selectedPatient;
+  const activePatient = isSelectedPatient(selectedPatientCandidate)
+    ? selectedPatientCandidate
+    : DEFAULT_SELECTED_PATIENT;
+
   const [ecgData, setEcgData] = useState<number[]>([]);
   const [startIndex, setStartIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -1060,8 +1095,8 @@ function App() {
       <div className={styles.mainLayout}>
         {/* Left sidebar: File Selection */}
         <div className={`${styles.fileSelectionArea} ${isFilePanelCollapsed ? styles.collapsed : ''}`}>
-            <button className={styles.backButton} onClick={() => navigate('/')}>Back to Patients</button>
-            <h3>Patient: John Doe</h3>
+            <button className={styles.backButton} onClick={() => navigate('/patients')}>Back to Patients</button>
+            <h3>Patient: {activePatient.name}</h3>
             <button className={styles.addFileButton} onClick={handleAddFileClick}>
               + Add New File
             </button>
@@ -1444,11 +1479,11 @@ function App() {
                   <div className={styles.patientDetails}>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>Patient Name:</span>
-                      <span className={styles.patientValue}>John Doe</span>
+                      <span className={styles.patientValue}>{activePatient.name}</span>
                     </div>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>Patient #:</span>
-                      <span className={styles.patientValue}>P-2024-001</span>
+                      <span className={styles.patientValue}>{activePatient.displayId}</span>
                     </div>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>File:</span>
