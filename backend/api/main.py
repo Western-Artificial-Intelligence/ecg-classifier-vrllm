@@ -435,7 +435,7 @@ async def analyze_record_with_agent(filename: str):
     normalized_filename = f"{record_name}.dat"
 
     try:
-        result = agent.generate_chat_analysis_for_record(record_name, visualize_count=3)
+        result = await agent.generate_chat_analysis_for_record(record_name, visualize_count=3)
         return {
             "filename": normalized_filename,
             "analysis": result["analysis"],

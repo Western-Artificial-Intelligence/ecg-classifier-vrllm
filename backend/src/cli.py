@@ -145,9 +145,10 @@ def main():
         evaluate.generate_gradcam_for_record(args.record_name, visualize_count=args.count)
 
     elif args.command == "agent":
+        import asyncio
         print(f"\n--- Running Evaluator Agent for Record: {args.record_name} ---")
         # Invokes the AI-powered analysis function from the `agent` module.
-        agent.generate_report_for_record(args.record_name)
+        asyncio.run(agent.generate_report_for_record(args.record_name))
         print(f"--- Agent Analysis Complete for Record: {args.record_name} ---")
 
     else:

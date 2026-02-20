@@ -12,6 +12,11 @@ import google.generativeai as genai
 from PIL import Image
 from backend.src import config
 from backend.src import evaluate
+from backend.src.utilities.rate_limiter import AsyncRateLimiter
+
+# Initialize global rate limiter for Gemini API
+# Default for free tier is usually 15 RPM for Gemini 1.5 Flash/Pro
+limiter = AsyncRateLimiter(rpm=15)
 
 
 def _parse_gradcam_filename(image_path: str):
@@ -32,11 +37,14 @@ def configure_genai():
         raise ValueError("GEMINI_API_KEY not found in configuration or environment variables.")
     genai.configure(api_key=config.GEMINI_API_KEY)
 
-def analyze_image(image_path: str, record_name: str, minute: int, prediction: str, confidence: float) -> str:
+async def analyze_image(image_path: str, record_name: str, minute: int, prediction: str, confidence: float) -> str:
     """
     Sends a Grad-CAM image to Gemini 1.5 Pro for analysis.
+    Wait for the rate limiter before making the API call.
     """
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    await limiter.wait()
+    
+    model = genai.GenerativeModel('gemini-1.5-flash') # Updated to a stable model name
 
     img = Image.open(image_path)
 
@@ -62,13 +70,13 @@ def analyze_image(image_path: str, record_name: str, minute: int, prediction: st
     """)
 
     try:
-        response = model.generate_content([prompt, img])
+        response = await model.generate_content_async([prompt, img])
         return response.text
     except Exception as e:
         return f"Error evaluating image: {e}"
 
 
-def generate_chat_analysis_for_record(record_name: str, visualize_count: int = 3) -> dict:
+async def generate_chat_analysis_for_record(record_name: str, visualize_count: int = 3) -> dict:
     """
     Generate a single chat-friendly analysis message for a record.
     Returns:
@@ -113,7 +121,7 @@ def generate_chat_analysis_for_record(record_name: str, visualize_count: int = 3
     report_content += f"Processing Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 
     for item in selected:
-        analysis = analyze_image(
+        analysis = await analyze_image(
             item["image_path"],
             record_name,
             item["minute"],
@@ -148,7 +156,7 @@ def generate_chat_analysis_for_record(record_name: str, visualize_count: int = 3
         },
     }
 
-def generate_report_for_record(record_name: str):
+async def generate_report_for_record(record_name: str):
     """
     Generates a full report for a record by analyzing available Grad-CAM images.
     If no images exist, it generates them first.
@@ -191,7 +199,7 @@ def generate_report_for_record(record_name: str):
             minute = int(parts[-3].replace("min", ""))
             
             print(f"Analyzing Minute {minute} ({prediction})...", flush=True)
-            analysis = analyze_image(image_path, record_name, minute, prediction, confidence)
+            analysis = await analyze_image(image_path, record_name, minute, prediction, confidence)
             
             report_content += f"## Analysis: Minute {minute}\n"
             report_content += f"**Prediction**: {prediction} (Confidence: {confidence:.2f})\n\n"
