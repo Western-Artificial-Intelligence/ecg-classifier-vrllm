@@ -16,6 +16,7 @@ from backend.src import config
 from backend.src import agent
 from backend.src.utilities.preprocess import preprocess_with_cache
 from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
+from backend.src.database import get_db_manager
 
 
 # Define Grad-CAM images directory
@@ -70,6 +71,14 @@ class CachedStaticFiles(StaticFiles):
             await super().__call__(scope, receive, send)
 
 app.mount("/gradcam_images", CachedStaticFiles(directory=GRADCAM_IMAGES_DIR), name="gradcam_images")
+
+# Optional: Initialize database manager (non-blocking if DB doesn't exist)
+try:
+    db_manager = get_db_manager()
+    print(f"Database manager initialized successfully")
+except Exception as e:
+    db_manager = None
+    print(f"Warning: Database not available: {e}")
 
 # Helper function to read .dat files
 # Assuming 16-bit integer samples
@@ -149,6 +158,73 @@ async def predict_apnea(filename: str):
                 "minute": int(minute),
                 "probability": prob_apnea
             })
+        
+        # Optional: Log to database if available
+        if db_manager:
+            try:
+                # Check if record exists, if not, create it (assumes patient_id=1 for now)
+                record = db_manager.get_record_by_name(record_name)
+                if not record:
+                    # Create a default patient if needed
+                    patients = db_manager.get_all_patients()
+                    if not patients:
+                        patient_id = db_manager.add_patient("Default Patient")
+                    else:
+                        patient_id = patients[0]['id']
+                    
+                    # Add the record
+                    record_id = db_manager.add_record(
+                        patient_id=patient_id,
+                        record_name=record_name,
+                        file_path=full_record_path,
+                        duration_minutes=len(tensors) if tensors.shape[0] > 0 else 0,
+                        sample_rate_hz=100
+                    )
+                else:
+                    record_id = record['id']
+                
+                # Save predictions to database
+                db_manager.save_predictions(record_id, predictions)
+                
+                # Save physiological metrics if available
+                if stats:
+                    metrics_dict = {}
+                    if 'hrv_time' in stats:
+                        metrics_dict.update({
+                            'mean_rri_ms': stats['hrv_time'].get('mean_rri_ms'),
+                            'sdnn_ms': stats['hrv_time'].get('sdnn_ms'),
+                            'rmssd_ms': stats['hrv_time'].get('rmssd_ms'),
+                            'pnn50_percent': stats['hrv_time'].get('pnn50_percent'),
+                            'cv_percent': stats['hrv_time'].get('cv_percent')
+                        })
+                    if 'hrv_freq' in stats:
+                        metrics_dict.update({
+                            'vlf_power_ms2': stats['hrv_freq'].get('vlf_power_ms2'),
+                            'lf_power_ms2': stats['hrv_freq'].get('lf_power_ms2'),
+                            'hf_power_ms2': stats['hrv_freq'].get('hf_power_ms2'),
+                            'total_power_ms2': stats['hrv_freq'].get('total_power_ms2'),
+                            'lf_hf_ratio': stats['hrv_freq'].get('lf_hf_ratio')
+                        })
+                    if 'edr' in stats:
+                        metrics_dict.update({
+                            'resp_rate_bpm': stats['edr'].get('resp_rate_bpm'),
+                            'edr_amplitude_range': stats['edr'].get('edr_amplitude_range'),
+                            'edr_variability': stats['edr'].get('edr_variability')
+                        })
+                    if 'rpeak' in stats:
+                        metrics_dict.update({
+                            'num_rpeaks': stats['rpeak'].get('num_rpeaks'),
+                            'mean_hr_bpm': stats['rpeak'].get('mean_hr_bpm'),
+                            'hr_std_bpm': stats['rpeak'].get('hr_std_bpm'),
+                            'recording_duration_min': stats['rpeak'].get('recording_duration_min')
+                        })
+                    
+                    if metrics_dict:
+                        db_manager.save_metrics(record_id, metrics_dict)
+                
+            except Exception as db_error:
+                # Database logging is optional, don't fail the request
+                print(f"Warning: Failed to log to database: {db_error}")
         
         return {
             "filename": filename,
@@ -260,6 +336,24 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
         }
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f)
+        
+        # Optional: Log to database if available
+        if db_manager:
+            try:
+                # Get or create record
+                record = db_manager.get_record_by_name(record_name)
+                if record:
+                    # Save Grad-CAM image reference to database
+                    db_manager.save_gradcam_image(
+                        record_id=record['id'],
+                        minute=int(target_minute),
+                        image_path=image_path,
+                        probability=confidence,
+                        predicted_class=class_label
+                    )
+            except Exception as db_error:
+                # Database logging is optional, don't fail the request
+                print(f"Warning: Failed to log Grad-CAM to database: {db_error}")
         
         return {
             "filename": filename,

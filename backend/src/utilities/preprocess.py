@@ -102,104 +102,7 @@ def preprocess(record_path_or_name: str) -> dict:
         total_minutes = int(len(signals) / float(config.SAMPLE))
         labels = ["N"] * total_minutes # Create dummy labels
 
-    X = [] # List to store extracted RRI and amplitude features for each segment
-    minutes = [] # List to store central minute index of each valid segment
-    skipped = [] # List to store central minute index of each skipped segment
-
-    # Iterate through each minute of the signal based on the labels.
-    for j in range(len(labels)):
-        # Check if the current minute 'j' has enough 'BEFORE' and 'AFTER' context
-        # required to form a full segment based on configuration.
-        if j < config.BEFORE or \
-           (j + 1 + config.AFTER) > len(signals) / float(config.SAMPLE):
-            skipped.append(j) # Mark this minute as skipped
-            continue
-
-        # Define the start and end sample points for the current signal segment.
-        # This segment covers `BEFORE` minutes, the current minute, and `AFTER` minutes.
-        start_sample = int((j - config.BEFORE) * config.SAMPLE)
-        end_sample = int((j + 1 + config.AFTER) * config.SAMPLE)
-        signal_segment = signals[start_sample:end_sample]
-
-        # Apply a bandpass filter to the extracted signal segment.
-        # This removes low-frequency baseline wander and high-frequency noise,
-        # preparing the signal for R-peak detection. Configuration from src.config.
-        signal_filt, _, _ = st.filter_signal(
-            signal_segment,
-            ftype="FIR",
-            band="bandpass",
-            order=int(0.3 * config.FS),
-            frequency=[3, 45],
-            sampling_rate=config.FS,
-        )
-
-        # Detect R-peaks using the Hamilton segmenter and then correct their locations.
-        rpeaks, = hamilton_segmenter(signal_filt, sampling_rate=config.FS)
-        rpeaks, = correct_rpeaks(signal_filt, rpeaks=rpeaks, sampling_rate=config.FS, tol=0.1)
-
-        if len(rpeaks) == 0:
-            skipped.append(j) # Skip if no R-peaks could be detected
-            continue
-
-        # Filter out signal segments based on physiologically plausible R-peak counts.
-        # Segments with too few or too many beats per window are likely noisy or anomalous.
-        expected_segment_duration_minutes = (1 + config.AFTER + config.BEFORE)
-        beats_per_window = len(rpeaks) / expected_segment_duration_minutes
-        if beats_per_window < 40 or beats_per_window > 200:
-            skipped.append(j)
-            continue
-
-        # Extract R-R Interval (RRI) features.
-        rri_tm = rpeaks[1:] / float(config.FS) # Time points for RRI values
-        rri_signal = np.diff(rpeaks) / float(config.FS) # RRI values (duration between consecutive R-peaks)
-        if rri_signal.size == 0:
-            skipped.append(j) # Skip if no RRI could be calculated (e.g., only one R-peak)
-            continue
-        # Apply a median filter to smooth out RRI signal and reduce artifacts.
-        rri_signal = medfilt(rri_signal, kernel_size=3)
-
-        # Extract R-peak Amplitude features.
-        ampl_tm = rpeaks / float(config.FS) # Time points for R-peak amplitudes
-        # Ensure R-peak indices are within the bounds of the filtered signal.
-        rpeaks_clip = np.clip(rpeaks, 0, len(signal_filt) - 1)
-        ampl_signal = signal_filt[rpeaks_clip] # Amplitude of the signal at R-peak locations
-
-        # Calculate Heart Rate (HR) and filter based on physiological limits.
-        # Avoid division by zero by clipping RRI values.
-        hr = 60.0 / np.clip(rri_signal, 1e-6, None)
-        if not np.all(np.logical_and(hr >= config.HR_MIN, hr <= config.HR_MAX)):
-            skipped.append(j)
-            continue
-
-        # If the segment passes all checks, add its features and minute index.
-        X.append(((rri_tm, rri_signal), (ampl_tm, ampl_signal)))
-        minutes.append(j)
-
-    # If no valid segments were extracted, return empty tensors and metadata.
-    if not X:
-        # Calculate expected sequence length based on config for an empty tensor.
-        seq_len = int((config.BEFORE + 1 + config.AFTER) * 60 * config.IR)
-        tensors = np.empty((0, seq_len, 2), dtype=np.float32)
-        return {
-            "record": base_record_name,
-            "tensors": tensors,
-            "raw_segments": [],
-            "minutes": [],
-            "skipped": skipped,
-        }
-
-    # Interpolate extracted RRI and amplitude signals to a fixed time grid.
-    # This ensures all segments have a consistent length for model input.
-    tm_fixed_grid = np.arange(0, (config.BEFORE + 1 + config.AFTER) * 60, step=1.0 / config.IR)
-
-    x_list = []
-    raw_segments_list = [] # Store raw signal segments
-    
-    # We iterate again through the original processing loop logic but now we need 
-    # to match the filtered X list. A cleaner way is to store the raw segment in X originally.
-    # Let's refactor the loop slightly to store raw_segment in X.
-    
-    # Re-initialize lists
+    # Initialize lists for features and stats collection
     X_features = [] 
     X_raw = []
     minutes = []
@@ -210,6 +113,7 @@ def preprocess(record_path_or_name: str) -> dict:
     all_rri = []
     all_amplitudes = []
 
+    # Single pass through all minutes - process once and collect everything
     for j in range(len(labels)):
         if j < config.BEFORE or \
            (j + 1 + config.AFTER) > len(signals) / float(config.SAMPLE):
@@ -273,6 +177,7 @@ def preprocess(record_path_or_name: str) -> dict:
         all_rri.extend(rri_signal.tolist())
         all_amplitudes.extend(ampl_signal[1:].tolist())  # Skip first amplitude to align with RRI
 
+    # If no valid segments were extracted, return empty tensors and metadata.
     if not X_features:
         seq_len = int((config.BEFORE + 1 + config.AFTER) * 60 * config.IR)
         tensors = np.empty((0, seq_len, 2), dtype=np.float32)
@@ -283,6 +188,10 @@ def preprocess(record_path_or_name: str) -> dict:
             "minutes": [],
             "skipped": skipped,
         }
+
+    # Interpolate extracted RRI and amplitude signals to a fixed time grid.
+    # This ensures all segments have a consistent length for model input.
+    tm_fixed_grid = np.arange(0, (config.BEFORE + 1 + config.AFTER) * 60, step=1.0 / config.IR)
 
     x_list = []
     for (rri_tm, rri_signal), (ampl_tm, ampl_signal) in X_features:
@@ -317,10 +226,10 @@ def preprocess(record_path_or_name: str) -> dict:
     return {
         "record": base_record_name,
         "tensors": x_arr,
-        "raw_segments": X_raw, # Return list of raw numpy arrays
+        "raw_segments": X_raw,
         "minutes": minutes,
         "skipped": skipped,
-        "stats": stats,  # NEW - physiological statistics
+        "stats": stats,
     }
 
 
