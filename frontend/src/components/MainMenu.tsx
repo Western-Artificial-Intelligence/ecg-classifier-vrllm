@@ -33,9 +33,16 @@ const MainMenu: React.FC = () => {
           <button
             type="button"
             className={styles.primaryButton}
+            onClick={() => navigate('/patient-management')}
+            >
+              Patient Management
+            </button>
+            <button
+              type="button"
+              className={styles.primaryButton}
             onClick={() => navigate('/patients')}
           >
-            Select Patient
+            Quick File Select
           </button>
         </div>
       </section>

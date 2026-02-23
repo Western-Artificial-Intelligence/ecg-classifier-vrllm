@@ -4,7 +4,8 @@ import styles from '../styles/App.module.css';
 import EcgChart from './EcgChart';
 import MinimapView from './MinimapView';
 import SummaryChartView from './SummaryChartView';
-import { savePredictions, loadPredictions, saveStats, loadStats } from '../utils/storage';
+import { PatientAPI, RecordAPI, AnalysisAPI } from '../services/api';
+import type { Patient, Record, PhysiologicalMetrics } from '../types/database';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -27,6 +28,9 @@ interface SelectedPatient {
 
 interface AnalysisLocationState {
   selectedPatient?: unknown;
+  patient?: Patient;
+  record?: Record;
+  filename?: string;
 }
 
 interface Prediction {
@@ -108,7 +112,7 @@ const isSelectedPatient = (value: unknown): value is SelectedPatient => {
     return false;
   }
 
-  const candidate = value as Record<string, unknown>;
+  const candidate = value as { [key: string]: unknown };
   return (
     typeof candidate.id === 'string' &&
     typeof candidate.name === 'string' &&
@@ -119,10 +123,16 @@ const isSelectedPatient = (value: unknown): value is SelectedPatient => {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const selectedPatientCandidate = (location.state as AnalysisLocationState | null)?.selectedPatient;
+  const locationState = location.state as AnalysisLocationState | null;
+  const selectedPatientCandidate = locationState?.selectedPatient;
   const activePatient = isSelectedPatient(selectedPatientCandidate)
     ? selectedPatientCandidate
     : DEFAULT_SELECTED_PATIENT;
+  
+  // Database patient and record from navigation
+  const dbPatient = locationState?.patient;
+  const dbRecord = locationState?.record;
+  const initialFilename = locationState?.filename;
 
   const [ecgData, setEcgData] = useState<number[]>([]);
   const [startIndex, setStartIndex] = useState<number>(0);
@@ -150,6 +160,12 @@ function App() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [predicting, setPredicting] = useState<boolean>(false);
   const [analyzingAgent, setAnalyzingAgent] = useState<boolean>(false);
+
+  // Database integration state
+  const [currentPatient, setCurrentPatient] = useState<Patient | null>(dbPatient || null);
+  const [currentRecord, setCurrentRecord] = useState<Record | null>(dbRecord || null);
+  const [loadingPatientRecords, setLoadingPatientRecords] = useState(false);
+  const [recordsMap, setRecordsMap] = useState<Map<string, Record>>(new Map());
 
   // New cache structure for tab system
   interface RecordingCache {
@@ -190,10 +206,42 @@ function App() {
   // Helper function to create cache key
   const getCacheKey = (filename: string, minute: number) => `${filename}_${minute}`;
 
+  // Helper function to convert database metrics to ECGStats format
+  const convertMetricsToStats = (dbMetrics: PhysiologicalMetrics): ECGStats => {
+    return {
+      hrv_time: {
+        mean_rri_ms: (dbMetrics.mean_rri_ms ?? 0) as number,
+        sdnn_ms: (dbMetrics.sdnn_ms ?? 0) as number,
+        rmssd_ms: (dbMetrics.rmssd_ms ?? 0) as number,
+        pnn50_percent: (dbMetrics.pnn50_percent ?? 0) as number,
+        cv_percent: (dbMetrics.cv_percent ?? 0) as number
+      },
+      hrv_freq: {
+        vlf_power_ms2: (dbMetrics.vlf_power_ms2 ?? 0) as number,
+        lf_power_ms2: (dbMetrics.lf_power_ms2 ?? 0) as number,
+        hf_power_ms2: (dbMetrics.hf_power_ms2 ?? 0) as number,
+        total_power_ms2: (dbMetrics.total_power_ms2 ?? 0) as number,
+        lf_hf_ratio: (dbMetrics.lf_hf_ratio ?? 0) as number
+      },
+      edr: {
+        resp_rate_bpm: (dbMetrics.resp_rate_bpm ?? 0) as number,
+        edr_amplitude_range: (dbMetrics.edr_amplitude_range ?? 0) as number,
+        edr_variability: (dbMetrics.edr_variability ?? 0) as number
+      },
+      rpeak: {
+        num_rpeaks: (dbMetrics.num_rpeaks ?? 0) as number,
+        mean_hr_bpm: (dbMetrics.mean_hr_bpm ?? 0) as number,
+        hr_std_bpm: (dbMetrics.hr_std_bpm ?? 0) as number,
+        recording_duration_min: (dbMetrics.recording_duration_min ?? 0) as number
+      }
+    };
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const analysisRequestIdRef = useRef<number>(0);
+  const loadingFilesRef = useRef<Set<string>>(new Set());
 
   // Calculate view window size based on current zoom level
   const viewWindowSize = ZOOM_PRESETS[currentZoom].samples === -1
@@ -262,6 +310,56 @@ function App() {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Load patient records from database if patient is provided
+  useEffect(() => {
+    const loadPatientRecords = async () => {
+      if (!currentPatient) return;
+      
+      console.log('Loading patient records for:', currentPatient.name);
+      setLoadingPatientRecords(true);
+      try {
+        const records = await PatientAPI.getRecords(currentPatient.id);
+        console.log('Loaded records:', records);
+        
+        const patientFilesList: PatientFile[] = records.map((record: Record) => ({
+          name: `${record.record_name}.dat`,
+          folder: 'Patient Recordings',
+          date: new Date(record.created_at)
+        }));
+        
+        // Build filename -> Record mapping
+        const newMap = new Map<string, Record>();
+        records.forEach(record => {
+          newMap.set(`${record.record_name}.dat`, record);
+        });
+        setRecordsMap(newMap);
+        
+        setPatientFiles(patientFilesList);
+        setOpenFolders(new Set(['Patient Recordings']));
+        
+        // Auto-load the initial file immediately after loading records
+        // Pass the record directly to avoid stale state issues
+        if (initialFilename && tabs.length === 0) {
+          console.log('Auto-loading initial file:', initialFilename);
+          const recordForFile = newMap.get(initialFilename);
+          handleFileSelect(initialFilename, recordForFile);
+        } else if (patientFilesList.length > 0 && tabs.length === 0) {
+          // No initial filename, load first file
+          const firstFileName = patientFilesList[0].name;
+          const recordForFile = newMap.get(firstFileName);
+          handleFileSelect(firstFileName, recordForFile);
+        }
+      } catch (err) {
+        console.error('Failed to load patient records:', err);
+        // Keep default files on error
+      } finally {
+        setLoadingPatientRecords(false);
+      }
+    };
+    
+    loadPatientRecords();
+  }, [currentPatient]);
+
   // Synchronize active tab data with display state
   useEffect(() => {
     if (activeTab && activeTab.type === 'ecg' && activeTab.ecgFile) {
@@ -291,93 +389,109 @@ function App() {
     updateActiveTab({ startIndex: newIndex });
   };
 
-  const handleFileSelect = async (fileName: string) => {
-    setActiveFile(fileName);
+  const handleFileSelect = async (fileName: string, dbRecordOverride?: Record) => {
+    // Prevent duplicate loads
+    if (loadingFilesRef.current.has(fileName)) {
+      console.log('Already loading', fileName, '- skipping duplicate call');
+      return;
+    }
+    
+    loadingFilesRef.current.add(fileName);
+    
+    try {
+      setActiveFile(fileName);
 
-    // Check if tab already exists for this file
-    const existingTab = tabs.find(t => t.type === 'ecg' && t.ecgFile === fileName);
-
-    if (existingTab) {
-      // Tab exists, just switch to it
-      setActiveTabId(existingTab.id);
-    } else {
-      // New tab - create it
-      createECGTab(fileName);
-
-      // Load and cache recording data if not already cached
-      if (!openRecordings.has(fileName)) {
-        try {
-          // Load ECG data
-          setLoading(true);
-          const response = await fetch(`http://localhost:8000/api/ecg_data/${fileName}`);
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const result = await response.json();
-
-          // Load predictions and stats from IndexedDB if available
-          let cachedPredictions = await loadPredictions(fileName);
-          let cachedStats = await loadStats(fileName);
-
-          // If no predictions but we have ECG data, try fetching from API
-          if (!cachedPredictions || cachedPredictions.length === 0) {
-            // Check if predictions exist on backend
-            try {
-              const recordName = fileName.replace('.dat', '');
-              const predResponse = await fetch(`http://localhost:8000/api/predict/${recordName}`, {
-                method: 'POST'
-              });
-
-              if (predResponse.ok) {
-                const predResult = await predResponse.json();
-                const fetchedPredictions = predResult.predictions || [];
-                const fetchedStats = predResult.stats || null;
-
-                cachedPredictions = fetchedPredictions;
-                cachedStats = fetchedStats;
-
-                // Save to IndexedDB for future
-                if (fetchedPredictions.length > 0) {
-                  await savePredictions(fileName, fetchedPredictions);
-                }
-                if (fetchedStats) {
-                  await saveStats(fileName, fetchedStats);
-                }
-              }
-            } catch (e) {
-              console.error('Failed to fetch predictions:', e);
-            }
-          }
-
-          // Cache the recording data
-          setOpenRecordings(prev => new Map(prev).set(fileName, {
-            ecgData: result.data || [],
-            predictions: cachedPredictions || [],
-            stats: cachedStats || null
-          }));
-
-          // Update state for rendering
-          setEcgData(result.data || []);
-          setPredictions(cachedPredictions || []);
-          setEcgStats(cachedStats || null);
-
-          // Batch load available Grad-CAM metadata
-          await loadGradcamMetadata(fileName);
-
-          setLoading(false);
-        } catch (e: any) {
-          console.error('Failed to load recording:', e);
-          setError(e.message);
-          setLoading(false);
-        }
+      // Update currentRecord if we have a mapping (use override if provided for immediate access)
+      const dbRec = dbRecordOverride || recordsMap.get(fileName);
+      if (dbRec) {
+        setCurrentRecord(dbRec);
       } else {
-        // Recording already cached, load from cache
-        const cached = openRecordings.get(fileName)!;
-        setEcgData(cached.ecgData);
-        setPredictions(cached.predictions);
-        setEcgStats(cached.stats);
-        setLoading(false);
+        setCurrentRecord(null);
       }
+
+      // Check if tab already exists for this file
+      const existingTab = tabs.find(t => t.type === 'ecg' && t.ecgFile === fileName);
+
+      if (existingTab) {
+        // Tab exists, just switch to it
+        setActiveTabId(existingTab.id);
+        loadingFilesRef.current.delete(fileName);
+      } else {
+        // New tab - create it
+        createECGTab(fileName);
+
+        // Load and cache recording data if not already cached
+        if (!openRecordings.has(fileName)) {
+          try {
+            // Load ECG data
+            setLoading(true);
+            const response = await fetch(`http://localhost:8000/api/ecg_data/${fileName}`);
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const result = await response.json();
+
+            // Try loading from database first using recordsMap
+            let cachedPredictions = null;
+            let cachedStats = null;
+
+            if (dbRec) {
+              console.log('Checking database for predictions - Record ID:', dbRec.id, 'Name:', dbRec.record_name);
+              try {
+                const dbPreds = await RecordAPI.getPredictions(dbRec.id);
+                console.log('Database predictions response:', dbPreds);
+                if (dbPreds?.predictions) {
+                  console.log('Found predictions in database:', dbPreds.predictions.length);
+                  cachedPredictions = dbPreds.predictions;
+                }
+                
+                const dbMetrics = await RecordAPI.getMetrics(dbRec.id);
+                console.log('Database metrics response:', dbMetrics);
+                if (dbMetrics) {
+                  console.log('Found metrics in database');
+                  cachedStats = convertMetricsToStats(dbMetrics);
+                }
+              } catch (e) {
+                console.log('Database lookup failed:', e);
+              }
+            } else {
+              console.log('No database record found for file:', fileName);
+            }
+
+            // Cache the recording data
+            openRecordings.set(fileName, {
+              ecgData: result.data || [],
+              predictions: cachedPredictions || [],
+              stats: cachedStats || null
+            });
+
+            // Trigger state updates
+            setEcgData(openRecordings.get(fileName)?.ecgData || []);
+            setPredictions(cachedPredictions || []);
+            setEcgStats(cachedStats);
+
+            // Batch load available Grad-CAM metadata
+            await loadGradcamMetadata(fileName);
+          } catch (err) {
+            setError(`Failed to load ECG data: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            setLoading(false);
+            loadingFilesRef.current.delete(fileName);
+          }
+        } else {
+          // File already cached, just load from cache
+          const cached = openRecordings.get(fileName);
+          if (cached) {
+            setEcgData(cached.ecgData);
+            setPredictions(cached.predictions);
+            setEcgStats(cached.stats);
+          }
+          loadingFilesRef.current.delete(fileName);
+        }
+      }
+    } catch (error) {
+      console.error('Error in handleFileSelect:', error);
+      loadingFilesRef.current.delete(fileName);
     }
   };
 
@@ -763,39 +877,64 @@ function App() {
   const fetchPredictions = async (filename: string) => {
     setPredicting(true);
     try {
-      // Try loading from IndexedDB first
-      const cached = await loadPredictions(filename);
-      if (cached) {
-        setPredictions(cached);
-        // Also load cached stats if available
-        const cachedStats = await loadStats(filename);
-        if (cachedStats) {
-          setEcgStats(cachedStats);
-        }
-        setPredicting(false);
-        return;
-      }
-
-      // Fetch from API
       const recordName = filename.replace('.dat', '');
-      const response = await fetch(`http://localhost:8000/api/predict/${recordName}`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      
+      // Try loading from database first (if we have a record)
+      if (currentRecord && currentRecord.record_name === recordName) {
+        try {
+          const dbPredictions = await RecordAPI.getPredictions(currentRecord.id);
+          if (dbPredictions && dbPredictions.predictions) {
+            setPredictions(dbPredictions.predictions);
+            
+            // Also try to load metrics
+            const dbMetrics = await RecordAPI.getMetrics(currentRecord.id);
+            if (dbMetrics) {
+              // Convert database metrics to ECGStats format (handling optional fields)
+              const stats: ECGStats = {
+                hrv_time: {
+                  mean_rri_ms: (dbMetrics.mean_rri_ms ?? 0) as number,
+                  sdnn_ms: (dbMetrics.sdnn_ms ?? 0) as number,
+                  rmssd_ms: (dbMetrics.rmssd_ms ?? 0) as number,
+                  pnn50_percent: (dbMetrics.pnn50_percent ?? 0) as number,
+                  cv_percent: (dbMetrics.cv_percent ?? 0) as number
+                },
+                hrv_freq: {
+                  vlf_power_ms2: (dbMetrics.vlf_power_ms2 ?? 0) as number,
+                  lf_power_ms2: (dbMetrics.lf_power_ms2 ?? 0) as number,
+                  hf_power_ms2: (dbMetrics.hf_power_ms2 ?? 0) as number,
+                  total_power_ms2: (dbMetrics.total_power_ms2 ?? 0) as number,
+                  lf_hf_ratio: (dbMetrics.lf_hf_ratio ?? 0) as number
+                },
+                edr: {
+                  resp_rate_bpm: (dbMetrics.resp_rate_bpm ?? 0) as number,
+                  edr_amplitude_range: (dbMetrics.edr_amplitude_range ?? 0) as number,
+                  edr_variability: (dbMetrics.edr_variability ?? 0) as number
+                },
+                rpeak: {
+                  num_rpeaks: (dbMetrics.num_rpeaks ?? 0) as number,
+                  mean_hr_bpm: (dbMetrics.mean_hr_bpm ?? 0) as number,
+                  hr_std_bpm: (dbMetrics.hr_std_bpm ?? 0) as number,
+                  recording_duration_min: (dbMetrics.recording_duration_min ?? 0) as number
+                }
+              };
+              setEcgStats(stats);
+            }
+            
+            setPredicting(false);
+            return;
+          }
+        } catch (dbErr) {
+          console.log('Database lookup failed, will fetch from API:', dbErr);
+        }
       }
 
-      const result = await response.json();
+      // Fetch from API (will generate predictions and auto-save to database if record exists)
+      const result = await AnalysisAPI.predict(filename);
       const predictions = result.predictions || [];
       const stats = result.stats || {};
 
       setPredictions(predictions);
       setEcgStats(stats);
-
-      // Save to IndexedDB
-      await savePredictions(filename, predictions);
-      await saveStats(filename, stats);
 
       // Update the cache for this recording
       setOpenRecordings(prev => {
@@ -1096,7 +1235,7 @@ function App() {
         {/* Left sidebar: File Selection */}
         <div className={`${styles.fileSelectionArea} ${isFilePanelCollapsed ? styles.collapsed : ''}`}>
             <button className={styles.backButton} onClick={() => navigate('/patients')}>Back to Patients</button>
-            <h3>Patient: {activePatient.name}</h3>
+            <h3>Patient: {currentPatient?.name || activePatient.name}</h3>
             <button className={styles.addFileButton} onClick={handleAddFileClick}>
               + Add New File
             </button>
@@ -1142,7 +1281,10 @@ function App() {
                           <div
                             key={file.name}
                             className={`${styles.fileItem} ${activeFile === file.name ? styles.activeFile : ''}`}
-                            onClick={() => handleFileSelect(file.name)}
+                            onClick={() => {
+                              const dbRec = recordsMap.get(file.name);
+                              handleFileSelect(file.name, dbRec);
+                            }}
                           >
                             <span className={styles.fileIcon}>📄</span>
                             <span className={styles.fileName}>{file.name}</span>
@@ -1479,16 +1621,46 @@ function App() {
                   <div className={styles.patientDetails}>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>Patient Name:</span>
-                      <span className={styles.patientValue}>{activePatient.name}</span>
+                      <span className={styles.patientValue}>{currentPatient?.name || activePatient.name}</span>
                     </div>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>Patient #:</span>
-                      <span className={styles.patientValue}>{activePatient.displayId}</span>
+                      <span className={styles.patientValue}>
+                        {currentPatient ? `ID: ${currentPatient.id}` : activePatient.displayId}
+                      </span>
                     </div>
                     <div className={styles.patientInfoRow}>
                       <span className={styles.patientLabel}>File:</span>
                       <span className={styles.patientValue}>{activeFile}</span>
                     </div>
+                    {currentPatient && (
+                      <>
+                        {currentPatient.date_of_birth && (
+                          <div className={styles.patientInfoRow}>
+                            <span className={styles.patientLabel}>DOB:</span>
+                            <span className={styles.patientValue}>{currentPatient.date_of_birth}</span>
+                          </div>
+                        )}
+                        {currentPatient.gender && (
+                          <div className={styles.patientInfoRow}>
+                            <span className={styles.patientLabel}>Gender:</span>
+                            <span className={styles.patientValue}>{currentPatient.gender}</span>
+                          </div>
+                        )}
+                        {currentPatient.weight_kg && (
+                          <div className={styles.patientInfoRow}>
+                            <span className={styles.patientLabel}>Weight:</span>
+                            <span className={styles.patientValue}>{currentPatient.weight_kg} kg</span>
+                          </div>
+                        )}
+                        {currentPatient.height_cm && (
+                          <div className={styles.patientInfoRow}>
+                            <span className={styles.patientLabel}>Height:</span>
+                            <span className={styles.patientValue}>{currentPatient.height_cm} cm</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 
