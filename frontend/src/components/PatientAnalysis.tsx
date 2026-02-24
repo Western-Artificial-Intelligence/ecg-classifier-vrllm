@@ -202,7 +202,7 @@ function App() {
   const [generationProgress, setGenerationProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 });
   const [isChatCollapsed, setIsChatCollapsed] = useState<boolean>(true);
   const [isToolbarExpanded, setIsToolbarExpanded] = useState<boolean>(false);
-
+  
   // Helper function to create cache key
   const getCacheKey = (filename: string, minute: number) => `${filename}_${minute}`;
 
@@ -1260,7 +1260,7 @@ function App() {
             </div>
 
             <div className={styles.fileTree}>
-              {['ECG Recordings', 'Previous Tests'].map(folderName => {
+              {['ECG Recordings', 'Patient Recordings', 'Previous Tests'].map(folderName => {
                 const filesInFolder = patientFiles.filter(f => f.folder === folderName);
                 if (filesInFolder.length === 0) return null;
 
