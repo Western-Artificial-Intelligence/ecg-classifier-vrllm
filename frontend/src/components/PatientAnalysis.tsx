@@ -1234,7 +1234,7 @@ function App() {
       <div className={styles.mainLayout}>
         {/* Left sidebar: File Selection */}
         <div className={`${styles.fileSelectionArea} ${isFilePanelCollapsed ? styles.collapsed : ''}`}>
-            <button className={styles.backButton} onClick={() => navigate('/patients')}>Back to Patients</button>
+            <button className={styles.backButton} onClick={() => navigate('/patient-management')}>Back to Patients</button>
             <h3>Patient: {currentPatient?.name || activePatient.name}</h3>
             <button className={styles.addFileButton} onClick={handleAddFileClick}>
               + Add New File

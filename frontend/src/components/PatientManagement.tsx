@@ -276,8 +276,8 @@ const PatientManagement: React.FC = () => {
     <div className={styles.container}>
       <header className={styles.header}>
         <div className={styles.headerContent}>
-          <button className={styles.backButton} onClick={() => navigate('/menu')}>
-            ← Back to Menu
+          <button className={styles.backButton} onClick={() => navigate('/')}>
+            ← Back to Landing Page
           </button>
           <h1 className={styles.title}>
             {viewMode === 'list' ? 'Patient Management' : selectedPatient?.name}

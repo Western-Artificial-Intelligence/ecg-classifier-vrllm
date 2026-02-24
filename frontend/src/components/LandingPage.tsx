@@ -26,7 +26,7 @@ const LandingPage: React.FC = () => {
   }, []);
 
   const handleDemoClick = () => {
-    navigate('/menu');
+    navigate('/patient-management');
   };
 
   return (
