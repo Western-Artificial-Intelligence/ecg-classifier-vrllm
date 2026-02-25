@@ -4,10 +4,11 @@ import base64
 import io
 import json
 import time
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
+from pydantic import BaseModel
 import numpy as np
 import tensorflow as tf
 
@@ -16,6 +17,7 @@ from backend.src import config
 from backend.src import agent
 from backend.src.utilities.preprocess import preprocess_with_cache
 from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
+from backend.src.database import get_db_manager
 
 
 # Define Grad-CAM images directory
@@ -71,6 +73,38 @@ class CachedStaticFiles(StaticFiles):
 
 app.mount("/gradcam_images", CachedStaticFiles(directory=GRADCAM_IMAGES_DIR), name="gradcam_images")
 
+# Pydantic models for request/response validation
+class PatientCreate(BaseModel):
+    name: str
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    weight_kg: Optional[float] = None
+    height_cm: Optional[float] = None
+
+class PatientUpdate(BaseModel):
+    name: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    weight_kg: Optional[float] = None
+    height_cm: Optional[float] = None
+
+class RecordCreate(BaseModel):
+    patient_id: int
+    record_name: str
+    file_path: str
+    duration_minutes: Optional[float] = None
+    sample_rate_hz: int = 100
+    recorded_at: Optional[str] = None
+    notes: Optional[str] = None
+
+# Optional: Initialize database manager (non-blocking if DB doesn't exist)
+try:
+    db_manager = get_db_manager()
+    print(f"Database manager initialized successfully")
+except Exception as e:
+    db_manager = None
+    print(f"Warning: Database not available: {e}")
+
 # Helper function to read .dat files
 # Assuming 16-bit integer samples
 def read_ecg_data(file_path: str) -> List[int]:
@@ -90,6 +124,299 @@ def read_ecg_data(file_path: str) -> List[int]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading ECG data: {e}")
     return samples
+
+def convert_numpy_types(obj):
+    """Recursively convert numpy types to native Python types for JSON serialization."""
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    return obj
+
+# ============================================================================
+# PATIENT ENDPOINTS
+# ============================================================================
+
+@app.get("/api/patients")
+async def get_all_patients():
+    """Get all patients from the database."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        patients = db_manager.get_all_patients()
+        return {"patients": patients}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch patients: {str(e)}")
+
+@app.get("/api/patients/{patient_id}")
+async def get_patient(patient_id: int):
+    """Get a specific patient by ID."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        patient = db_manager.get_patient(patient_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        return patient
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch patient: {str(e)}")
+
+@app.post("/api/patients")
+async def create_patient(patient: PatientCreate):
+    """Create a new patient."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        patient_id = db_manager.add_patient(
+            name=patient.name,
+            date_of_birth=patient.date_of_birth,
+            gender=patient.gender,
+            weight_kg=patient.weight_kg,
+            height_cm=patient.height_cm
+        )
+        
+        # Return the newly created patient
+        new_patient = db_manager.get_patient(patient_id)
+        return new_patient
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create patient: {str(e)}")
+
+@app.put("/api/patients/{patient_id}")
+async def update_patient(patient_id: int, patient_update: PatientUpdate):
+    """Update an existing patient."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if patient exists
+        existing_patient = db_manager.get_patient(patient_id)
+        if not existing_patient:
+            raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        
+        # Update patient
+        db_manager.update_patient(
+            patient_id=patient_id,
+            name=patient_update.name,
+            date_of_birth=patient_update.date_of_birth,
+            gender=patient_update.gender,
+            weight_kg=patient_update.weight_kg,
+            height_cm=patient_update.height_cm
+        )
+        
+        # Return updated patient
+        updated_patient = db_manager.get_patient(patient_id)
+        return updated_patient
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update patient: {str(e)}")
+
+@app.get("/api/patients/{patient_id}/records")
+async def get_patient_records(patient_id: int):
+    """Get all ECG recordings for a specific patient."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if patient exists
+        patient = db_manager.get_patient(patient_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        
+        records = db_manager.get_patient_records(patient_id)
+        return {"records": records}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch records: {str(e)}")
+
+# ============================================================================
+# RECORD ENDPOINTS
+# ============================================================================
+
+@app.get("/api/records/{record_id}")
+async def get_record(record_id: int):
+    """Get a specific ECG record by ID."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        record = db_manager.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+        return record
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch record: {str(e)}")
+
+@app.get("/api/records/{record_id}/predictions")
+async def get_record_predictions(record_id: int):
+    """Get predictions for a specific record."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if record exists
+        record = db_manager.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+        
+        predictions = db_manager.get_predictions(record_id)
+        if not predictions:
+            return {"predictions": None, "message": "No predictions found for this record"}
+        
+        return predictions
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch predictions: {str(e)}")
+
+@app.get("/api/records/{record_id}/metrics")
+async def get_record_metrics(record_id: int):
+    """Get physiological metrics for a specific record."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if record exists
+        record = db_manager.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+        
+        metrics = db_manager.get_metrics(record_id)
+        if not metrics:
+            return {"metrics": None, "message": "No metrics found for this record"}
+        
+        return metrics
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch metrics: {str(e)}")
+
+@app.get("/api/records/{record_id}/gradcams")
+async def get_record_gradcams(record_id: int):
+    """Get all Grad-CAM images metadata for a specific record."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if record exists
+        record = db_manager.get_record(record_id)
+        if not record:
+            raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+        
+        gradcams = db_manager.get_gradcam_images(record_id)
+        return {"gradcams": gradcams}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Grad-CAM images: {str(e)}")
+
+@app.get("/api/files/available")
+async def get_available_files():
+    """Get list of available .dat files in the raw data directory."""
+    try:
+        raw_data_dir = config.RAW_DATA_DIR
+        if not os.path.exists(raw_data_dir):
+            return {"files": []}
+        
+        files = []
+        for filename in os.listdir(raw_data_dir):
+            if filename.endswith('.dat'):
+                file_path = os.path.join(raw_data_dir, filename)
+                file_size = os.path.getsize(file_path)
+                file_mtime = os.path.getmtime(file_path)
+                
+                # Check if already in database
+                record_name = filename.replace('.dat', '')
+                is_linked = False
+                if db_manager:
+                    try:
+                        existing = db_manager.get_record_by_name(record_name)
+                        is_linked = existing is not None
+                    except:
+                        pass
+                
+                files.append({
+                    "filename": filename,
+                    "record_name": record_name,
+                    "size": file_size,
+                    "modified": file_mtime,
+                    "is_linked": is_linked
+                })
+        
+        # Sort by modified date (newest first)
+        files.sort(key=lambda x: x['modified'], reverse=True)
+        return {"files": files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
+
+@app.post("/api/records")
+async def create_record(record: RecordCreate):
+    """Create a new record linking a patient to an existing .dat file."""
+    if not db_manager:
+        raise HTTPException(status_code=503, detail="Database not available")
+    
+    try:
+        # Check if patient exists
+        patient = db_manager.get_patient(record.patient_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail=f"Patient {record.patient_id} not found")
+        
+        # Check if record name already exists
+        existing = db_manager.get_record_by_name(record.record_name)
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Record {record.record_name} already exists")
+        
+        # Construct full file path using config
+        # If filename includes .dat, use record_name, otherwise append .dat
+        if record.record_name.endswith('.dat'):
+            filename = record.record_name
+            record_name_clean = record.record_name.replace('.dat', '')
+        else:
+            filename = f"{record.record_name}.dat"
+            record_name_clean = record.record_name
+        
+        full_file_path = os.path.join(config.RAW_DATA_DIR, filename)
+        
+        # Verify file exists
+        if not os.path.exists(full_file_path):
+            raise HTTPException(status_code=404, detail=f"File not found: {filename} (expected at {full_file_path})")
+        
+        # Create record with the full path
+        record_id = db_manager.add_record(
+            patient_id=record.patient_id,
+            record_name=record_name_clean,
+            file_path=full_file_path,
+            duration_minutes=record.duration_minutes,
+            sample_rate_hz=record.sample_rate_hz,
+            recorded_at=record.recorded_at,
+            notes=record.notes
+        )
+        
+        # Return the newly created record
+        new_record = db_manager.get_record(record_id)
+        return new_record
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create record: {str(e)}")
+
+# ============================================================================
+# ECG DATA & ANALYSIS ENDPOINTS
+# ============================================================================
 
 @app.get("/api/ecg_data/{filename}")
 async def get_ecg_data(filename: str):
@@ -150,11 +477,86 @@ async def predict_apnea(filename: str):
                 "probability": prob_apnea
             })
         
+        # Optional: Log to database if available
+        if db_manager:
+            try:
+                # Check if record exists
+                record = db_manager.get_record_by_name(record_name)
+                
+                # Only save predictions/metrics if record exists in database
+                # Records should be created through PatientManagement linking
+                if not record:
+                    print(f"Record {record_name} not in database, skipping database save")
+                else:
+                    record_id = record['id']
+                    
+                    # Check if predictions already exist for this record
+                    existing_preds = db_manager.get_predictions(record_id)
+                    if not existing_preds:
+                        # Save predictions to database only if they don't exist
+                        db_manager.save_predictions(record_id, predictions)
+                        print(f"Saved predictions for {record_name} to database")
+                    else:
+                        print(f"Predictions already exist for record {record_name}, skipping save")
+                    
+                    # Save physiological metrics if available and don't already exist
+                    if stats:
+                        existing_metrics = db_manager.get_metrics(record_id)
+                        
+                        if not existing_metrics:
+                            metrics_dict = {}
+                            if 'hrv_time' in stats:
+                                metrics_dict.update({
+                                    'mean_rri_ms': stats['hrv_time'].get('mean_rri_ms'),
+                                    'sdnn_ms': stats['hrv_time'].get('sdnn_ms'),
+                                    'rmssd_ms': stats['hrv_time'].get('rmssd_ms'),
+                                    'pnn50_percent': stats['hrv_time'].get('pnn50_percent'),
+                                    'cv_percent': stats['hrv_time'].get('cv_percent')
+                                })
+                            if 'hrv_freq' in stats:
+                                metrics_dict.update({
+                                    'vlf_power_ms2': stats['hrv_freq'].get('vlf_power_ms2'),
+                                    'lf_power_ms2': stats['hrv_freq'].get('lf_power_ms2'),
+                                    'hf_power_ms2': stats['hrv_freq'].get('hf_power_ms2'),
+                                    'total_power_ms2': stats['hrv_freq'].get('total_power_ms2'),
+                                    'lf_hf_ratio': stats['hrv_freq'].get('lf_hf_ratio')
+                                })
+                            if 'edr' in stats:
+                                metrics_dict.update({
+                                    'resp_rate_bpm': stats['edr'].get('resp_rate_bpm'),
+                                    'edr_amplitude_range': stats['edr'].get('edr_amplitude_range'),
+                                    'edr_variability': stats['edr'].get('edr_variability')
+                                })
+                            if 'rpeak' in stats:
+                                metrics_dict.update({
+                                    'num_rpeaks': stats['rpeak'].get('num_rpeaks'),
+                                    'mean_hr_bpm': stats['rpeak'].get('mean_hr_bpm'),
+                                    'hr_std_bpm': stats['rpeak'].get('hr_std_bpm'),
+                                    'recording_duration_min': stats['rpeak'].get('recording_duration_min')
+                                })
+                            
+                            if metrics_dict:
+                                # Convert numpy types in metrics_dict before saving to database
+                                metrics_dict_clean = convert_numpy_types(metrics_dict)
+                                db_manager.save_metrics(record_id, metrics_dict_clean)
+                                print(f"Saved metrics for {record_name} to database")
+                        else:
+                            print(f"Metrics already exist for record {record_name}, skipping save")
+                
+            except Exception as db_error:
+                # Database logging is optional, don't fail the request
+                print(f"Warning: Failed to log to database: {db_error}")
+        
+        # Convert all data to serializable format (predictions, stats, skipped)
+        predictions_serializable = convert_numpy_types(predictions)
+        stats_serializable = convert_numpy_types(stats)
+        skipped_serializable = convert_numpy_types(skipped)
+        
         return {
             "filename": filename,
-            "predictions": predictions,
-            "skipped": skipped,
-            "stats": stats  # NEW - include physiological stats in response
+            "predictions": predictions_serializable,
+            "skipped": skipped_serializable,
+            "stats": stats_serializable
         }
         
     except Exception as e:
@@ -260,6 +662,24 @@ async def generate_gradcam(filename: str, minute: Optional[int] = Query(None)):
         }
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f)
+        
+        # Optional: Log to database if available
+        if db_manager:
+            try:
+                # Get or create record
+                record = db_manager.get_record_by_name(record_name)
+                if record:
+                    # Save Grad-CAM image reference to database
+                    db_manager.save_gradcam_image(
+                        record_id=record['id'],
+                        minute=int(target_minute),
+                        image_path=image_path,
+                        probability=confidence,
+                        predicted_class=class_label
+                    )
+            except Exception as db_error:
+                # Database logging is optional, don't fail the request
+                print(f"Warning: Failed to log Grad-CAM to database: {db_error}")
         
         return {
             "filename": filename,

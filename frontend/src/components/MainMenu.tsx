@@ -33,10 +33,10 @@ const MainMenu: React.FC = () => {
           <button
             type="button"
             className={styles.primaryButton}
-            onClick={() => navigate('/patients')}
-          >
-            Select Patient
-          </button>
+            onClick={() => navigate('/patient-management')}
+            >
+              Patient Management
+            </button>
         </div>
       </section>
     </main>
