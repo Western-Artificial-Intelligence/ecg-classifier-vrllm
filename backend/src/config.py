@@ -30,6 +30,9 @@ RESULTS_DIR = os.path.join("results")
 # Path to the Gemini API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Gemini model name used by the Evaluator Agent
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
 # -- Preprocessing Settings --
 
 # Sampling frequency of the ECG signals

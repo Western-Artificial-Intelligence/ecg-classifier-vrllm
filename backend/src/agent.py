@@ -44,7 +44,7 @@ async def analyze_image(image_path: str, record_name: str, minute: int, predicti
     """
     await limiter.wait()
     
-    model = genai.GenerativeModel('gemini-1.5-flash') # Updated to a stable model name
+    model = genai.GenerativeModel(config.GEMINI_MODEL)
 
     img = Image.open(image_path)
 
