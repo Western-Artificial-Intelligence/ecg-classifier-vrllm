@@ -162,9 +162,9 @@ function App() {
   const [analyzingAgent, setAnalyzingAgent] = useState<boolean>(false);
 
   // Database integration state
-  const [currentPatient, setCurrentPatient] = useState<Patient | null>(dbPatient || null);
+  const [currentPatient] = useState<Patient | null>(dbPatient || null);
   const [currentRecord, setCurrentRecord] = useState<Record | null>(dbRecord || null);
-  const [loadingPatientRecords, setLoadingPatientRecords] = useState(false);
+  const [, setLoadingPatientRecords] = useState(false);
   const [recordsMap, setRecordsMap] = useState<Map<string, Record>>(new Map());
 
   // New cache structure for tab system

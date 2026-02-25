@@ -27,9 +27,12 @@ type ApiError = {
    * Custom error class for API errors
    */
   export class APIError extends Error {
-    constructor(public statusCode: number, message: string) {
+    statusCode: number;
+
+    constructor(statusCode: number, message: string) {
       super(message);
       this.name = 'APIError';
+      this.statusCode = statusCode;
     }
   }
   
