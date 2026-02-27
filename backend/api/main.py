@@ -33,7 +33,7 @@ def get_model():
     """Load and cache the trained model."""
     global _model
     if _model is None:
-        model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+        model_path = config.resolve_model_path()
         if not os.path.exists(model_path):
             raise HTTPException(status_code=500, detail=f"Model not found at {model_path}")
         _model = tf.keras.models.load_model(model_path)

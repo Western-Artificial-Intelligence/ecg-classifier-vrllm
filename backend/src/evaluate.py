@@ -10,6 +10,9 @@ Functions:
 """
 
 import os
+import json
+import subprocess
+from datetime import datetime, timezone
 
 # Scientific computing and data analysis libraries
 import numpy as np
@@ -26,6 +29,19 @@ from backend.src import config # For accessing configuration parameters and file
 from backend.src.utilities.preprocess import preprocess # For preprocessing single ECG records for prediction
 from backend.src.data_loader import load_data # For loading the main processed dataset
 from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization # Import Grad-CAM utilities
+
+# Locked evaluation threshold for paper reporting.
+APNEA_THRESHOLD = 0.5
+
+
+def _get_git_commit_sha() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
+    except Exception:
+        return "unknown"
 
 
 def plot_training_history(history: tf.keras.callbacks.History):
@@ -82,13 +98,16 @@ def evaluate_model():
     # Load the best trained model.
     # The model is expected to be saved in the Keras native format (.keras)
     # in the directory specified by config.MODELS_DIR.
-    model_path = os.path.join(config.MODELS_DIR, 'model.final.keras')
+    model_path = config.resolve_model_path()
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}. Please ensure training was successful.")
         return
 
     model = tf.keras.models.load_model(model_path)
     print(f"Model loaded from: {model_path}")
+    model_param_count = int(model.count_params())
+    model_file_size_bytes = int(os.path.getsize(model_path))
+    model_file_size_mb = float(model_file_size_bytes / (1024 * 1024))
 
     # Load the test data.
     # We only need x_test, y_test, and groups_test for evaluation.
@@ -97,18 +116,44 @@ def evaluate_model():
 
     # Make predictions (probability scores for each class) on the test data.
     y_score = model.predict(x_test)
+    y_prob_non_apnea = y_score[:, 0]
+    y_prob_apnea = y_score[:, 1]
 
     # Save prediction scores to a CSV file.
-    # This includes true labels, predicted scores for the positive class (apnea),
-    # and the original subject (record) name for each segment.
-    output_df = pd.DataFrame({"y_true": y_test, "y_score": y_score[:, 1], "subject": groups_test})
-    output_csv_path = os.path.join(config.RESULTS_DIR, "CNN-Transformer-LSTM.csv")
+    # Includes true labels, per-class probabilities, binary predictions, and record IDs.
+    y_true = y_test.astype(int)
+    y_pred = (y_prob_apnea >= APNEA_THRESHOLD).astype(int)
+    output_df = pd.DataFrame({
+        "y_true": y_true,
+        "y_score": y_prob_apnea,  # Backward-compatible column name.
+        "p_apnea": y_prob_apnea,
+        "p_non_apnea": y_prob_non_apnea,
+        "y_pred": y_pred,
+        "subject": groups_test,
+    })
+    output_csv_path = os.path.join(config.RESULTS_DIR, "CNN-Transformer.csv")
     output_df.to_csv(output_csv_path, index=False)
     print(f"Prediction scores saved to: {output_csv_path}")
 
-    # Convert probability scores to binary predictions (0 or 1) by taking the class with higher probability.
-    y_true = y_test # True binary labels
-    y_pred = np.argmax(y_score, axis=-1) # Predicted binary labels
+    # Save per-record predicted prevalence summary for ranking highest/lowest files.
+    subject_summary_df = (
+        output_df.groupby("subject", as_index=False)
+        .agg(
+            total_minutes=("subject", "size"),
+            predicted_apnea_minutes=("y_pred", "sum"),
+            true_apnea_minutes=("y_true", "sum"),
+            mean_p_apnea=("p_apnea", "mean"),
+        )
+    )
+    subject_summary_df["predicted_apnea_ratio"] = (
+        subject_summary_df["predicted_apnea_minutes"] / subject_summary_df["total_minutes"]
+    )
+    subject_summary_df["true_apnea_ratio"] = (
+        subject_summary_df["true_apnea_minutes"] / subject_summary_df["total_minutes"]
+    )
+    summary_csv_path = os.path.join(config.RESULTS_DIR, "record_apnea_prevalence_summary.csv")
+    subject_summary_df.sort_values("predicted_apnea_ratio", ascending=False).to_csv(summary_csv_path, index=False)
+    print(f"Per-record apnea prevalence summary saved to: {summary_csv_path}")
 
     # Calculate various classification metrics.
     # Confusion Matrix: Helps understand classification performance (True Positives, False Positives, etc.).
@@ -125,7 +170,7 @@ def evaluate_model():
     f1 = f1_score(y_true, y_pred, average='binary')
     # AUC (Area Under the Receiver Operating Characteristic Curve): Measures the model's ability
     # to distinguish between classes across various threshold settings.
-    fpr, tpr, _ = roc_curve(y_true, y_score[:, 1]) # False Positive Rate, True Positive Rate
+    fpr, tpr, _ = roc_curve(y_true, y_prob_apnea) # False Positive Rate, True Positive Rate
     roc_auc = auc(fpr, tpr)
     
     # Print the calculated metrics.
@@ -135,6 +180,56 @@ def evaluate_model():
     print(f"Specificity: {sp:.4f}")
     print(f"F1-score: {f1:.4f}")
     print(f"AUC: {roc_auc:.4f}")
+    print(f"Decision rule: predicted apnea if P(apnea) >= {APNEA_THRESHOLD:.2f}")
+    print(
+        "Model size: "
+        f"{model_param_count:,} params, {model_file_size_mb:.2f} MB"
+    )
+
+    highest_row = subject_summary_df.loc[subject_summary_df["predicted_apnea_ratio"].idxmax()]
+    lowest_row = subject_summary_df.loc[subject_summary_df["predicted_apnea_ratio"].idxmin()]
+    print(
+        "Highest predicted apnea prevalence record: "
+        f"{highest_row['subject']} ({highest_row['predicted_apnea_ratio'] * 100:.2f}%)"
+    )
+    print(
+        "Lowest predicted apnea prevalence record: "
+        f"{lowest_row['subject']} ({lowest_row['predicted_apnea_ratio'] * 100:.2f}%)"
+    )
+
+    eval_metadata = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit_sha": _get_git_commit_sha(),
+        "model_path": model_path,
+        "apnea_threshold": APNEA_THRESHOLD,
+        "model_size": {
+            "parameter_count": model_param_count,
+            "file_size_bytes": model_file_size_bytes,
+            "file_size_mb": model_file_size_mb,
+        },
+        "num_samples": int(len(y_true)),
+        "num_unique_records": int(output_df["subject"].nunique()),
+        "metrics": {
+            "accuracy": float(acc),
+            "sensitivity": float(sn),
+            "specificity": float(sp),
+            "f1": float(f1),
+            "auc": float(roc_auc),
+        },
+        "highest_predicted_prevalence_record": {
+            "subject": str(highest_row["subject"]),
+            "predicted_apnea_ratio": float(highest_row["predicted_apnea_ratio"]),
+            "true_apnea_ratio": float(highest_row["true_apnea_ratio"]),
+        },
+        "lowest_predicted_prevalence_record": {
+            "subject": str(lowest_row["subject"]),
+            "predicted_apnea_ratio": float(lowest_row["predicted_apnea_ratio"]),
+            "true_apnea_ratio": float(lowest_row["true_apnea_ratio"]),
+        },
+    }
+    with open(config.EVALUATION_METADATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(eval_metadata, f, indent=2)
+    print(f"Evaluation metadata saved to: {config.EVALUATION_METADATA_PATH}")
 
     # --- Plotting ---
     # Plot and save the Confusion Matrix.
@@ -183,8 +278,7 @@ def predict_on_record(record_name: str):
     print(f"\n--- Starting Prediction for Record: {record_name} ---")
 
     # Load the trained model from the MODELS_DIR.
-    # It expects the model to be saved as 'model.final.keras'.
-    model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+    model_path = config.resolve_model_path()
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}. Please ensure a model has been trained and saved.")
         return
@@ -250,7 +344,7 @@ def generate_gradcam_for_minute(record_name: str, minute: int, model=None):
     
     # Load model if not provided
     if model is None:
-        model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+        model_path = config.resolve_model_path()
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found at {model_path}")
         model = tf.keras.models.load_model(model_path)
@@ -320,7 +414,7 @@ def generate_gradcam_for_record(record_name: str, visualize_count: int = 3):
     print(f"\n--- Starting Grad-CAM Generation for Record: {record_name} ---")
 
     # Load Model
-    model_path = os.path.join(config.MODELS_DIR, "model.final.keras")
+    model_path = config.resolve_model_path()
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}.")
         return

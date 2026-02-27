@@ -27,11 +27,34 @@ MODELS_DIR = os.path.join("models")
 # Path to the results
 RESULTS_DIR = os.path.join("results")
 
+# Canonical model artifact selected by validation policy.
+ACTIVE_MODEL_FILENAME = os.getenv("ACTIVE_MODEL_FILENAME", "model.keras")
+ACTIVE_MODEL_PATH = os.path.join(MODELS_DIR, ACTIVE_MODEL_FILENAME)
+# Backward-compatible legacy model path.
+COMPAT_FINAL_MODEL_PATH = os.path.join(MODELS_DIR, "model.final.keras")
+
+# Metadata outputs for reproducibility.
+TRAINING_METADATA_PATH = os.path.join(RESULTS_DIR, "training_run_metadata.json")
+EVALUATION_METADATA_PATH = os.path.join(RESULTS_DIR, "evaluation_run_metadata.json")
+
 # Path to the Gemini API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Gemini model name used by the Evaluator Agent
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+# -- Reproducibility Settings --
+# Global random seed for Python/NumPy/TensorFlow training/evaluation paths.
+RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
+# Enable deterministic TensorFlow ops where supported.
+ENABLE_TF_DETERMINISM = os.getenv("ENABLE_TF_DETERMINISM", "1") == "1"
+
+
+def resolve_model_path() -> str:
+    """
+    Return canonical model path when available, otherwise use legacy fallback.
+    """
+    return ACTIVE_MODEL_PATH if os.path.exists(ACTIVE_MODEL_PATH) else COMPAT_FINAL_MODEL_PATH
 
 # -- Preprocessing Settings --
 
