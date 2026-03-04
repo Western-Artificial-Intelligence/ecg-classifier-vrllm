@@ -20,7 +20,6 @@ from backend.src import config # For accessing configuration parameters (e.g., f
 from backend.src.data_loader import load_data # For loading prepared training and testing data
 from backend.src.model import create_model # For instantiating the CNN-Transformer model architecture
 
-
 def train_model() -> keras.callbacks.History:
     """
     Orchestrates the model training process.
@@ -83,7 +82,7 @@ def train_model() -> keras.callbacks.History:
     # does not improve for a specified number of epochs ('patience').
     early_stopping = tf.keras.callbacks.EarlyStopping(
         monitor='val_loss', # Metric to monitor
-        patience=30,        # Number of epochs with no improvement after which training will be stopped
+        patience=20,        # Number of epochs with no improvement after which training will be stopped
         verbose=1           # Log when early stopping occurs
     )
     
@@ -91,7 +90,7 @@ def train_model() -> keras.callbacks.History:
     # (validation loss) has stopped improving. This can help the model converge better.
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', # Metric to monitor
-        patience=3,         # Number of epochs with no improvement after which learning rate will be reduced
+        patience=5,         # Number of epochs with no improvement after which learning rate will be reduced
         verbose=1           # Log when learning rate is reduced
     )
     
@@ -103,7 +102,8 @@ def train_model() -> keras.callbacks.History:
     )
 
     # Combine all callbacks into a list.
-    callbacks_list = [checkpoint, early_stopping, reduce_lr, csv_logger]
+    # callbacks_list = [checkpoint, early_stopping, reduce_lr, csv_logger]
+    callbacks_list = [checkpoint, reduce_lr, early_stopping, csv_logger]
 
     # 6. Train the model.
     # 'x_train', 'y_train': Training data and labels.
@@ -115,7 +115,7 @@ def train_model() -> keras.callbacks.History:
         x_train,
         y_train,
         batch_size=128,
-        epochs=20, # config.EPOCHS could be used here if defined in config.py
+        epochs=30, # config.EPOCHS could be used here if defined in config.py
         validation_data=(x_test, y_test),
         callbacks=callbacks_list
     )

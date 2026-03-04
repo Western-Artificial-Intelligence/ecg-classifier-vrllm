@@ -12,11 +12,24 @@ Functions:
 
 # Deep learning framework and layers
 import tensorflow as tf
+import keras
 from tensorflow.keras.layers import (LayerNormalization, MultiHeadAttention, Add,
                                      Dense, Dropout, Flatten, Input, Conv1D,
                                      MaxPooling1D)
 from tensorflow.keras.models import Model
 
+
+# Custom layer for self-attention pooling
+@keras.utils.register_keras_serializable()
+class AttentionPooling(tf.keras.layers.Layer):
+    def __init__(self):
+        super().__init__()
+        self.attention = Dense(1)
+
+    def call(self, x):
+        scores = self.attention(x)
+        weights = tf.nn.softmax(scores, axis=1)
+        return tf.reduce_sum(weights * x, axis=1)
 
 def positional_encoding(seq_length: int, d_model: int) -> tf.Tensor:
     """
@@ -178,7 +191,7 @@ def create_model(input_shape: tuple, num_heads: int = 2, key_dim: int = 32, drop
 
     # --- Fully Connected Layers (Classifier Head) ---
     # Flattens the output of the Transformer to prepare it for a standard feed-forward classifier.
-    fc_output = Flatten()(transformer_output)
+    fc_output = AttentionPooling()(transformer_output) # Apply attention pooling to get a fixed-size representation
     # A dense layer with ReLU activation for learning complex patterns from the combined features.
     fc_output = Dense(128, activation='relu')(fc_output)
     # Output layer with softmax activation for multi-class classification (Apnea vs. Non-Apnea).
