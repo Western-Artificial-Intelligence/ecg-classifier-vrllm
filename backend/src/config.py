@@ -16,7 +16,7 @@ load_dotenv()
 # Note: These paths are relative to the project root directory
 
 # Path to the raw ECG data
-RAW_DATA_DIR = os.path.join("data", "raw", "ecgdata")
+RAW_DATA_DIR = os.path.join("data", "raw")
 
 # Path to the processed data
 PROCESSED_DATA_DIR = os.path.join("data", "processed")
@@ -45,7 +45,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # -- Reproducibility Settings --
 # Global random seed for Python/NumPy/TensorFlow training/evaluation paths.
-RANDOM_SEED = int(os.getenv("RANDOM_SEED", "42"))
+RANDOM_SEED = int(os.getenv("RANDOM_SEED", "7"))
 # Enable deterministic TensorFlow ops where supported.
 ENABLE_TF_DETERMINISM = os.getenv("ENABLE_TF_DETERMINISM", "1") == "1"
 

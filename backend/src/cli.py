@@ -13,13 +13,6 @@ Commands:
 
 import argparse # Standard library for parsing command-line arguments
 
-# Import core modules of the project.
-# These modules contain the functions that implement each stage of the pipeline.
-from backend.src import train        # Module for model training functionalities
-from backend.src import evaluate     # Module for model evaluation and prediction functionalities
-from backend.src import preprocessing # Module for the main data preprocessing pipeline
-from backend.src import agent        # Module for AI-powered Grad-CAM analysis
-
 
 def main():
     """
@@ -112,12 +105,15 @@ def main():
     # respective module.
 
     if args.command == "preprocess":
+        from backend.src import preprocessing
         print("\n--- Running Data Preprocessing Pipeline ---")
         # Invokes the main preprocessing function from the `preprocessing` module.
         preprocessing.run_preprocessing()
         print("--- Data Preprocessing Complete ---")
 
     elif args.command == "train":
+        from backend.src import train
+        from backend.src import evaluate
         print("\n--- Starting Model Training ---")
         # Invokes the model training function from the `train` module.
         # It returns a history object which contains training/validation metrics per epoch.
@@ -129,23 +125,27 @@ def main():
         evaluate.evaluate_model() # Run full evaluation on the test set
 
     elif args.command == "evaluate":
+        from backend.src import evaluate
         print("\n--- Starting Model Evaluation ---")
         # Invokes the model evaluation function from the `evaluate` module.
         evaluate.evaluate_model()
         print("--- Model Evaluation Complete ---")
 
     elif args.command == "predict":
+        from backend.src import evaluate
         print(f"\n--- Starting Prediction for Record: {args.record_name} ---")
         # Invokes the prediction function for a single record from the `evaluate` module.
         evaluate.predict_on_record(args.record_name)
         print(f"--- Prediction Complete for Record: {args.record_name} ---")
 
     elif args.command == "gradcam":
+        from backend.src import evaluate
         # Invokes the Grad-CAM generation function from the `evaluate` module.
         evaluate.generate_gradcam_for_record(args.record_name, visualize_count=args.count)
 
     elif args.command == "agent":
         import asyncio
+        from backend.src import agent
         print(f"\n--- Running Evaluator Agent for Record: {args.record_name} ---")
         # Invokes the AI-powered analysis function from the `agent` module.
         asyncio.run(agent.generate_report_for_record(args.record_name))

@@ -1,0 +1,30 @@
+{
+  "timestamp_utc": "2026-03-01T04:29:22.627026+00:00",
+  "git_commit_sha": "49c6ec0586ba1eec582779c18c37a165cc78c6d0",
+  "model_path": "models\\model.keras",
+  "apnea_threshold": 0.5,
+  "model_size": {
+    "parameter_count": 469890,
+    "file_size_bytes": 5782484,
+    "file_size_mb": 5.514606475830078
+  },
+  "num_samples": 16945,
+  "num_unique_records": 35,
+  "metrics": {
+    "accuracy": 0.8921215697845972,
+    "sensitivity": 0.8423728813559322,
+    "specificity": 0.9230033476805356,
+    "f1": 0.8567622629681868,
+    "auc": 0.9560201509293259
+  },
+  "highest_predicted_prevalence_record": {
+    "subject": "x27",
+    "predicted_apnea_ratio": 0.991869918699187,
+    "true_apnea_ratio": 0.9817073170731707
+  },
+  "lowest_predicted_prevalence_record": {
+    "subject": "x04",
+    "predicted_apnea_ratio": 0.0,
+    "true_apnea_ratio": 0.0
+  }
+}

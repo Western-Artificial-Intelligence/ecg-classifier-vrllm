@@ -31,6 +31,19 @@ from tqdm import tqdm # Progress bar for loops
 # Import project-specific configuration
 from backend.src import config
 
+
+def _load_apn_labels(record_name: str) -> list:
+    """Load minute labels from a record's WFDB apnea annotation file."""
+    record_path = os.path.join(config.RAW_DATA_DIR, record_name)
+    try:
+        return wfdb.rdann(record_path, extension="apn").symbol
+    except Exception as exc:
+        raise FileNotFoundError(
+            f"Missing or unreadable .apn annotations for '{record_name}' "
+            f"under '{config.RAW_DATA_DIR}'."
+        ) from exc
+
+
 def worker(name: str, labels: list) -> tuple:
     """
     Processes a single ECG record, extracts features, and filters data.
@@ -154,8 +167,7 @@ def run_preprocessing():
         task_list = []
         # Submit a 'worker' task for each training record
         for record_name in train_record_names:
-            # Load apnea annotations (.apn file) for the current record
-            labels = wfdb.rdann(os.path.join(config.RAW_DATA_DIR, record_name), extension="apn").symbol
+            labels = _load_apn_labels(record_name)
             task_list.append(executor.submit(worker, record_name, labels)) # Add task to the pool
 
         # Collect results as tasks complete
@@ -167,17 +179,9 @@ def run_preprocessing():
 
     print() # Newline for better output formatting
 
-    # Load "event-2-answers" which contains labels for the 'x' series test records.
-    # This file is expected to be in the PROCESSED_DATA_DIR.
-    answers = {}
-    event_2_answers_path = os.path.join(config.PROCESSED_DATA_DIR, "event-2-answers")
-    with open(event_2_answers_path, "r") as f:
-        for answer in f.read().split("\n\n"):
-            # Parse the answer file to create a dictionary of record names to labels
-            answers[answer[:3]] = list("".join(answer.split()[2::2]))
-
     # Define the list of ECG record names to be used for the testing set.
     # These correspond to the 'x' series in the PhysioNet Apnea-ECG dataset.
+    # Labels are loaded from each record's .apn annotation file.
     test_record_names = [
         "x01", "x02", "x03", "x04", "x05", "x06", "x07", "x08", "x09", "x10",
         "x11", "x12", "x13", "x14", "x15", "x16", "x17", "x18", "x19", "x20",
@@ -195,8 +199,7 @@ def run_preprocessing():
         task_list = []
         # Submit a 'worker' task for each testing record
         for record_name in test_record_names:
-            # Get labels from the 'answers' dictionary loaded previously
-            labels = answers[record_name]
+            labels = _load_apn_labels(record_name)
             task_list.append(executor.submit(worker, record_name, labels))
 
         # Collect results as tasks complete
