@@ -113,7 +113,7 @@ const EcgChart: React.FC<EcgChartProps> = ({
         return Math.floor(sampleIndex / 6000).toString();
       });
     } else {
-      labels = Array.from({ length: visibleData.length }, (_, i) => (startIndex + i).toString());
+      labels = Array.from({ length: visibleData.length }, (_, i) => ((startIndex + i) / 100).toFixed(2));
     }
 
     setChartData({
@@ -242,7 +242,7 @@ const EcgChart: React.FC<EcgChartProps> = ({
         type: 'category' as const,
         title: {
           display: true,
-          text: isFullView ? 'Time (minutes)' : 'Time (samples)',
+          text: isFullView ? 'Time (minutes)' : 'Time (s)',
         },
         grid: {
           display: false,

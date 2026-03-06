@@ -13,12 +13,6 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-interface PatientFile {
-  name: string;
-  folder: string;
-  date: Date;
-  file?: File; // The actual file object if uploaded
-}
 
 interface SelectedPatient {
   id: string;
@@ -46,21 +40,6 @@ interface GradCAMData {
   recordingFile?: string;
 }
 
-interface Tab {
-  id: string;
-  type: 'ecg' | 'gradcam';
-  title: string;
-
-  // For ECG tabs
-  ecgFile?: string;
-  viewMode?: ViewMode;
-  startIndex?: number;
-  zoom?: ZoomLevel;
-
-  // For Grad-CAM tabs
-  minute?: number;
-  gradcamData?: GradCAMData;
-}
 
 interface ECGStats {
   hrv_time?: {
@@ -138,9 +117,7 @@ function App() {
   const [startIndex, setStartIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isFilePanelCollapsed, setIsFilePanelCollapsed] = useState<boolean>(false);
   const [isPatientInfoCollapsed, setIsPatientInfoCollapsed] = useState<boolean>(false);
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set(['ECG Recordings']));
   const [activeFile, setActiveFile] = useState<string>('a01.dat');
   const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -149,12 +126,6 @@ function App() {
       content: 'Welcome to NeuralApnea Triage Assistant. How can I help you analyze this ECG?',
       timestamp: new Date()
     }
-  ]);
-  const [patientFiles, setPatientFiles] = useState<PatientFile[]>([
-    { name: 'a01.dat', folder: 'ECG Recordings', date: new Date('2024-01-10') },
-    { name: 'a02.dat', folder: 'ECG Recordings', date: new Date('2024-01-08') },
-    { name: 'a03.dat', folder: 'ECG Recordings', date: new Date('2024-01-05') },
-    { name: 'test_12_2023.dat', folder: 'Previous Tests', date: new Date('2023-12-15') }
   ]);
 
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -184,16 +155,11 @@ function App() {
 
   const [openRecordings, setOpenRecordings] = useState<Map<string, RecordingCache>>(new Map());
   const [gradcamImages, setGradcamImages] = useState<Map<string, GradCAMCache>>(new Map());
-  const [openGradcamTabs, setOpenGradcamTabs] = useState<Set<string>>(new Set());
-
-  // Tab system state
-  const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
+  const [activeGradcamData, setActiveGradcamData] = useState<GradCAMData | null>(null);
 
   const [currentZoom, setCurrentZoom] = useState<ZoomLevel>('DETAIL');
   const [viewMode, setViewMode] = useState<ViewMode>('waveform');
-  const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes' | 'physio'>('details');
+  const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes' | 'physio' | 'gradcam'>('details');
   const [gradcamQueue, setGradcamQueue] = useState<Set<number>>(new Set());
   const [gradcamNotifications, setGradcamNotifications] = useState<Array<{ minute: number, id: string }>>([]);
   const [showAnalysisOverlay] = useState<boolean>(true);
@@ -237,7 +203,6 @@ function App() {
     };
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const analysisRequestIdRef = useRef<number>(0);
@@ -248,36 +213,10 @@ function App() {
     ? ecgData.length
     : ZOOM_PRESETS[currentZoom].samples;
 
-  const toggleFolder = (folderName: string) => {
-    setOpenFolders(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(folderName)) {
-        newSet.delete(folderName);
-      } else {
-        newSet.add(folderName);
-      }
-      return newSet;
-    });
-  };
-
-  // Get the currently active tab
-  const activeTab = tabs.find(t => t.id === activeTabId);
-  const hasActiveEcgTab = !!(activeTab && activeTab.type === 'ecg');
-  const canUseEcgControls = hasActiveEcgTab && !loading && !error;
-  const canRunPredictions = hasActiveEcgTab && !!activeFile && !loading && !error && ecgData.length > 0;
+  const canUseEcgControls = !loading && !error && ecgData.length > 0;
+  const canRunPredictions = !!activeFile && !loading && !error && ecgData.length > 0;
   const primaryToolbarAction: PrimaryToolbarAction = predictions.length > 0 ? 'run_analysis' : 'run_predictions';
   const isToolbarMenuVisible = isToolbarExpanded;
-
-  const handleFilePanelToggle = () => {
-    setIsFilePanelCollapsed(prev => {
-      const nextCollapsed = !prev;
-      if (!nextCollapsed) {
-        // Opening left panel collapses right panel.
-        setIsChatCollapsed(true);
-      }
-      return nextCollapsed;
-    });
-  };
 
   const handlePatientInfoToggle = () => {
     setIsPatientInfoCollapsed(prev => {
@@ -291,17 +230,10 @@ function App() {
   };
 
   const handleChatToggleFromToolbar = () => {
-    setIsChatCollapsed(prev => {
-      const nextCollapsed = !prev;
-      if (!nextCollapsed) {
-        setIsFilePanelCollapsed(true);
-      }
-      return nextCollapsed;
-    });
+    setIsChatCollapsed(prev => !prev);
   };
 
   const handleOpenChat = () => {
-    setIsFilePanelCollapsed(true);
     setIsChatCollapsed(false);
   };
 
@@ -321,33 +253,20 @@ function App() {
         const records = await PatientAPI.getRecords(currentPatient.id);
         console.log('Loaded records:', records);
         
-        const patientFilesList: PatientFile[] = records.map((record: Record) => ({
-          name: `${record.record_name}.dat`,
-          folder: 'Patient Recordings',
-          date: new Date(record.created_at)
-        }));
-        
         // Build filename -> Record mapping
         const newMap = new Map<string, Record>();
-        records.forEach(record => {
+        records.forEach((record: Record) => {
           newMap.set(`${record.record_name}.dat`, record);
         });
         setRecordsMap(newMap);
-        
-        setPatientFiles(patientFilesList);
-        setOpenFolders(new Set(['Patient Recordings']));
-        
+
         // Auto-load the initial file immediately after loading records
-        // Pass the record directly to avoid stale state issues
-        if (initialFilename && tabs.length === 0) {
+        if (initialFilename) {
           console.log('Auto-loading initial file:', initialFilename);
-          const recordForFile = newMap.get(initialFilename);
-          handleFileSelect(initialFilename, recordForFile);
-        } else if (patientFilesList.length > 0 && tabs.length === 0) {
-          // No initial filename, load first file
-          const firstFileName = patientFilesList[0].name;
-          const recordForFile = newMap.get(firstFileName);
-          handleFileSelect(firstFileName, recordForFile);
+          handleFileSelect(initialFilename, newMap.get(initialFilename));
+        } else if (records.length > 0) {
+          const firstFileName = `${records[0].record_name}.dat`;
+          handleFileSelect(firstFileName, newMap.get(firstFileName));
         }
       } catch (err) {
         console.error('Failed to load patient records:', err);
@@ -360,33 +279,9 @@ function App() {
     loadPatientRecords();
   }, [currentPatient]);
 
-  // Synchronize active tab data with display state
-  useEffect(() => {
-    if (activeTab && activeTab.type === 'ecg' && activeTab.ecgFile) {
-      // Update activeFile to match the tab
-      setActiveFile(activeTab.ecgFile);
-
-      // Load data from cache if available
-      const cached = openRecordings.get(activeTab.ecgFile);
-      if (cached) {
-        setEcgData(cached.ecgData);
-        setPredictions(cached.predictions);
-        setEcgStats(cached.stats);
-      }
-
-      // Restore tab-specific view settings
-      if (activeTab.viewMode) setViewMode(activeTab.viewMode);
-      if (activeTab.zoom) setCurrentZoom(activeTab.zoom);
-      if (activeTab.startIndex !== undefined) setStartIndex(activeTab.startIndex);
-    }
-  }, [activeTabId, activeTab, openRecordings]);
-
 
   const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newIndex = Number(event.target.value);
-    setStartIndex(newIndex);
-    // Update the active tab's position
-    updateActiveTab({ startIndex: newIndex });
+    setStartIndex(Number(event.target.value));
   };
 
   const handleFileSelect = async (fileName: string, dbRecordOverride?: Record) => {
@@ -409,19 +304,8 @@ function App() {
         setCurrentRecord(null);
       }
 
-      // Check if tab already exists for this file
-      const existingTab = tabs.find(t => t.type === 'ecg' && t.ecgFile === fileName);
-
-      if (existingTab) {
-        // Tab exists, just switch to it
-        setActiveTabId(existingTab.id);
-        loadingFilesRef.current.delete(fileName);
-      } else {
-        // New tab - create it
-        createECGTab(fileName);
-
-        // Load and cache recording data if not already cached
-        if (!openRecordings.has(fileName)) {
+      // Load and cache recording data if not already cached
+      if (!openRecordings.has(fileName)) {
           try {
             // Load ECG data
             setLoading(true);
@@ -488,61 +372,12 @@ function App() {
           }
           loadingFilesRef.current.delete(fileName);
         }
-      }
     } catch (error) {
       console.error('Error in handleFileSelect:', error);
       loadingFilesRef.current.delete(fileName);
     }
   };
 
-  const validateDatFile = (file: File): boolean => {
-    return file.name.toLowerCase().endsWith('.dat');
-  };
-
-  const handleFileAdd = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const validFiles: PatientFile[] = [];
-    const invalidFiles: string[] = [];
-
-    Array.from(files).forEach(file => {
-      if (validateDatFile(file)) {
-        validFiles.push({
-          name: file.name,
-          folder: 'ECG Recordings',
-          date: new Date(),
-          file: file
-        });
-      } else {
-        invalidFiles.push(file.name);
-      }
-    });
-
-    if (validFiles.length > 0) {
-      setPatientFiles(prev => [...validFiles, ...prev]);
-      // TODO: Upload files to backend here
-      console.log('Files to upload:', validFiles);
-    }
-
-    if (invalidFiles.length > 0) {
-      alert(`The following files were rejected (only .dat files allowed):\n${invalidFiles.join('\n')}`);
-    }
-  };
-
-  const handleAddFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFileAdd(event.target.files);
-    // Reset input so same file can be selected again
-    event.target.value = '';
-  };
-
-  const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    handleFileAdd(event.dataTransfer.files);
-  };
 
   const handleSendMessage = async () => {
     if (chatInput.trim() === '') return;
@@ -748,130 +583,6 @@ function App() {
     }
   };
 
-  // Tab Management Functions
-  const createECGTab = (filename: string) => {
-    // Check if tab already exists for this file
-    const existing = tabs.find(t => t.type === 'ecg' && t.ecgFile === filename);
-    if (existing) {
-      setActiveTabId(existing.id);
-      return;
-    }
-
-    const tabId = `ecg-${filename}-${Date.now()}`;
-    const newTab: Tab = {
-      id: tabId,
-      type: 'ecg',
-      title: filename,
-      ecgFile: filename,
-      viewMode: 'waveform',
-      startIndex: 0,
-      zoom: 'DETAIL'
-    };
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(tabId);
-  };
-
-  const createGradCAMTab = (minute: number, gradcamData: GradCAMData) => {
-    // Check if tab already exists for this minute
-    const existing = tabs.find(t =>
-      t.type === 'gradcam' &&
-      t.minute === minute &&
-      gradcamData.recordingFile === activeFile
-    );
-    if (existing) {
-      setActiveTabId(existing.id);
-      return;
-    }
-
-    // Extract recording name without .dat extension
-    const recordingName = activeFile.replace('.dat', '');
-
-    const tabId = `gradcam-${minute}-${Date.now()}`;
-    const newTab: Tab = {
-      id: tabId,
-      type: 'gradcam',
-      title: `${recordingName} Min ${minute}`,
-      minute,
-      gradcamData
-    };
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(tabId);
-  };
-
-  const closeTab = (tabId: string) => {
-    const tab = tabs.find(t => t.id === tabId);
-    if (!tab) return;
-
-    if (tab.type === 'ecg') {
-      // Closing a recording tab
-      const filename = tab.ecgFile!;
-
-      // Remove recording from cache
-      setOpenRecordings(prev => {
-        const newCache = new Map(prev);
-        newCache.delete(filename);
-        return newCache;
-      });
-
-      // Remove Grad-CAM images ONLY if no Grad-CAM tabs are open for them
-      setGradcamImages(prev => {
-        const newCache = new Map(prev);
-
-        // Get all images for this recording
-        Array.from(newCache.entries()).forEach(([key, data]) => {
-          if (data.recordingFile === filename) {
-            // Only delete if no open tab for this image
-            if (!openGradcamTabs.has(key)) {
-              newCache.delete(key);
-            }
-          }
-        });
-
-        return newCache;
-      });
-
-    } else if (tab.type === 'gradcam') {
-      // Closing a Grad-CAM tab
-      const cacheKey = getCacheKey(activeFile, tab.minute!);
-
-      // Remove from openGradcamTabs
-      setOpenGradcamTabs(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(cacheKey);
-        return newSet;
-      });
-
-      // Check if parent recording is still open
-      const parentRecordingOpen = tabs.some(t =>
-        t.type === 'ecg' &&
-        t.ecgFile === gradcamImages.get(cacheKey)?.recordingFile
-      );
-
-      // If parent recording is closed, remove the image from cache
-      if (!parentRecordingOpen) {
-        setGradcamImages(prev => {
-          const newCache = new Map(prev);
-          newCache.delete(cacheKey);
-          return newCache;
-        });
-      }
-    }
-
-    // Remove tab from tabs array
-    setTabs(prev => prev.filter(t => t.id !== tabId));
-
-    // Switch to another tab if closing active tab
-    if (activeTabId === tabId) {
-      const remainingTabs = tabs.filter(t => t.id !== tabId);
-      setActiveTabId(remainingTabs.length > 0 ? remainingTabs[0].id : null);
-    }
-  };
-
-  const updateActiveTab = (updates: Partial<Tab>) => {
-    setTabs(prev => prev.map(t =>
-      t.id === activeTabId ? { ...t, ...updates } : t
-    ));
-  };
 
   // Fetch predictions for the active file
   const fetchPredictions = async (filename: string) => {
@@ -1065,22 +776,20 @@ function App() {
     }
   };
 
-  // Handle View button click to create Grad-CAM tab
+  // Handle View button click to show Grad-CAM in right panel
   const handleViewGradCAM = (minute: number) => {
     const cacheKey = getCacheKey(activeFile, minute);
     const imageData = gradcamImages.get(cacheKey);
 
     if (imageData) {
-      // Create tab and mark as open
-      createGradCAMTab(minute, {
+      setActiveGradcamData({
         minute: imageData.minute,
         imageUrl: imageData.imageUrl,
         probability: imageData.probability,
-        predictedClass: imageData.predictedClass
+        predictedClass: imageData.predictedClass,
+        recordingFile: activeFile
       });
-
-      // Track that this Grad-CAM tab is now open
-      setOpenGradcamTabs(prev => new Set(prev).add(cacheKey));
+      setPatientInfoTab('gradcam');
     } else {
       alert('Please generate the Grad-CAM explanation first by clicking "Explain".');
     }
@@ -1232,123 +941,14 @@ function App() {
   return (
     <div className={styles.appContainer}>
       <div className={styles.mainLayout}>
-        {/* Left sidebar: File Selection */}
-        <div className={`${styles.fileSelectionArea} ${isFilePanelCollapsed ? styles.collapsed : ''}`}>
-            <button className={styles.backButton} onClick={() => navigate('/patient-management')}>Back to Patients</button>
-            <h3>Patient: {currentPatient?.name || activePatient.name}</h3>
-            <button className={styles.addFileButton} onClick={handleAddFileClick}>
-              + Add New File
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".dat"
-              multiple
-              style={{ display: 'none' }}
-              onChange={handleFileInputChange}
-            />
-
-            <div
-              className={styles.fileDropZone}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleFileDrop}
-            >
-              <div className={styles.dropZoneText}>
-                <span>📁</span>
-                <p>Drag & Drop .dat files here</p>
-              </div>
-            </div>
-
-            <div className={styles.fileTree}>
-              {['ECG Recordings', 'Patient Recordings', 'Previous Tests'].map(folderName => {
-                const filesInFolder = patientFiles.filter(f => f.folder === folderName);
-                if (filesInFolder.length === 0) return null;
-
-                return (
-                  <React.Fragment key={folderName}>
-                    <div className={styles.folderItem} onClick={() => toggleFolder(folderName)}>
-                      <span className={styles.folderIcon}>
-                        {openFolders.has(folderName) ? '📂' : '📁'}
-                      </span>
-                      <span className={styles.folderName}>{folderName}</span>
-                      <span className={styles.folderToggle}>
-                        {openFolders.has(folderName) ? '▼' : '▶'}
-                      </span>
-                    </div>
-                    {openFolders.has(folderName) && (
-                      <div className={styles.fileList}>
-                        {filesInFolder.map((file) => (
-                          <div
-                            key={file.name}
-                            className={`${styles.fileItem} ${activeFile === file.name ? styles.activeFile : ''}`}
-                            onClick={() => {
-                              const dbRec = recordsMap.get(file.name);
-                              handleFileSelect(file.name, dbRec);
-                            }}
-                          >
-                            <span className={styles.fileIcon}>📄</span>
-                            <span className={styles.fileName}>{file.name}</span>
-                            <span className={styles.fileDate}>
-                              {file.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-        </div>
-
         {/* Middle column: ECG Display and Patient Info */}
-        <div className={`${styles.middleColumn} ${isFilePanelCollapsed ? styles.expanded : ''}`}>
-          <button
-            className={`${styles.togglePanelsButton} ${isFilePanelCollapsed ? styles.panelToggleCollapsed : styles.panelToggleOpen}`}
-            onClick={handleFilePanelToggle}
-            title={isFilePanelCollapsed ? "Show file panel" : "Hide file panel"}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              {isFilePanelCollapsed ? (
-                <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              ) : (
-                <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              )}
-            </svg>
-          </button>
-
+        <div className={styles.middleColumn}>
           {/* ECG Display */}
           <div className={styles.ecgDisplayArea}>
-            {/* Tab Bar */}
+            {/* Toolbar */}
             <div className={styles.tabBar}>
-                <div className={styles.tabList}>
-                  {tabs.map(tab => (
-                    <div
-                      key={tab.id}
-                      className={`${styles.tab} ${activeTabId === tab.id ? styles.active : ''}`}
-                      onClick={() => setActiveTabId(tab.id)}
-                      onMouseEnter={() => setHoveredTabId(tab.id)}
-                      onMouseLeave={() => setHoveredTabId(null)}
-                    >
-                      <span className={styles.tabIcon}>
-                        {tab.type === 'ecg' ? <span className={styles.ecgIcon}>R</span> : '🔍'}
-                      </span>
-                      <span className={styles.tabTitle}>{tab.title}</span>
-                      {hoveredTabId === tab.id && (
-                        <button
-                          className={styles.tabClose}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            closeTab(tab.id);
-                          }}
-                        >
-                          ×
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
                 <div className={styles.tabBarActions}>
+                  <button className={styles.backButton} onClick={() => navigate('/patient-management')}>← Back</button>
                   {!isToolbarMenuVisible && (
                     <button
                       className={styles.toolbarCompactToggle}
@@ -1371,11 +971,9 @@ function App() {
                         <select
                           id="viewModeSelect"
                           className={styles.toolbarSelect}
-                          value={activeTab?.viewMode || viewMode}
+                          value={viewMode}
                           onChange={(e) => {
-                            const selectedMode = e.target.value as ViewMode;
-                            setViewMode(selectedMode);
-                            updateActiveTab({ viewMode: selectedMode });
+                            setViewMode(e.target.value as ViewMode);
                           }}
                           disabled={!canUseEcgControls}
                         >
@@ -1390,11 +988,9 @@ function App() {
                         <select
                           id="zoomLevelSelect"
                           className={styles.toolbarSelect}
-                          value={activeTab?.zoom || currentZoom}
+                          value={currentZoom}
                           onChange={(e) => {
-                            const selectedZoom = e.target.value as ZoomLevel;
-                            setCurrentZoom(selectedZoom);
-                            updateActiveTab({ zoom: selectedZoom });
+                            setCurrentZoom(e.target.value as ZoomLevel);
                           }}
                           disabled={!canUseEcgControls}
                         >
@@ -1447,56 +1043,48 @@ function App() {
                 </div>
               </div>
 
-            {/* Content rendering based on active tab */}
-            {activeTab && activeTab.type === 'ecg' && (
+            {/* ECG Content */}
+            {loading && <div className={styles.ecgChartPlaceholder}>Loading ECG Data...</div>}
+            {error && <div className={styles.ecgChartPlaceholder} style={{ color: 'red' }}>Error: {error}</div>}
+            {!loading && !error && ecgData.length === 0 && (
+              <div className={styles.ecgChartPlaceholder}>No recording selected. Select a .dat file to display waveform.</div>
+            )}
+            {!loading && !error && ecgData.length > 0 && (
               <>
-                {loading && <div className={styles.ecgChartPlaceholder}>Loading ECG Data...</div>}
-                {error && <div className={styles.ecgChartPlaceholder} style={{ color: 'red' }}>Error: {error}</div>}
-                {!loading && !error && ecgData.length > 0 && (
-                  <div className={styles.ecgChartWrapper}>
-                    {/* Render based on view mode */}
-                    {(activeTab?.viewMode || viewMode) === 'waveform' && (
-                      <EcgChart
-                        dataPoints={ecgData}
-                        viewWindowSize={viewWindowSize}
-                        startIndex={startIndex}
-                        predictions={predictions}
-                        onSegmentClick={handleSegmentClick}
-                        isFullView={currentZoom === 'FULL'}
-                        showAnnotations={showAnalysisOverlay}
-                      />
-                    )}
+                <div className={styles.ecgChartWrapper}>
+                  {viewMode === 'waveform' && (
+                    <EcgChart
+                      dataPoints={ecgData}
+                      viewWindowSize={viewWindowSize}
+                      startIndex={startIndex}
+                      predictions={predictions}
+                      onSegmentClick={handleSegmentClick}
+                      isFullView={currentZoom === 'FULL'}
+                      showAnnotations={showAnalysisOverlay}
+                    />
+                  )}
+                  {viewMode === 'minimap' && (
+                    <MinimapView
+                      dataPoints={ecgData}
+                      predictions={predictions}
+                      currentPosition={startIndex}
+                      viewWindowSize={viewWindowSize}
+                      onPositionChange={setStartIndex}
+                    />
+                  )}
+                  {viewMode === 'summary' && (
+                    <SummaryChartView
+                      predictions={predictions}
+                      onMinuteClick={(minute) => {
+                        const samplePosition = minute * 6000;
+                        setStartIndex(Math.max(0, Math.min(samplePosition, ecgData.length - viewWindowSize)));
+                        setViewMode('waveform');
+                        setCurrentZoom('DETAIL');
+                      }}
+                    />
+                  )}
+                </div>
 
-                    {(activeTab?.viewMode || viewMode) === 'minimap' && (
-                      <MinimapView
-                        dataPoints={ecgData}
-                        predictions={predictions}
-                        currentPosition={startIndex}
-                        viewWindowSize={viewWindowSize}
-                        onPositionChange={setStartIndex}
-                      />
-                    )}
-
-                    {(activeTab?.viewMode || viewMode) === 'summary' && (
-                      <SummaryChartView
-                        predictions={predictions}
-                        onMinuteClick={(minute) => {
-                          // Jump to that minute in detail view
-                          const samplePosition = minute * 6000;
-                          setStartIndex(Math.max(0, Math.min(samplePosition, ecgData.length - viewWindowSize)));
-                          setViewMode('waveform');
-                          setCurrentZoom('DETAIL');
-                          updateActiveTab({ viewMode: 'waveform', zoom: 'DETAIL', startIndex: samplePosition });
-                        }}
-                      />
-                    )}
-                  </div>
-                )}
-                {!loading && !error && ecgData.length === 0 && (
-                  <div className={styles.ecgChartPlaceholder}>No ECG data available.</div>
-                )}
-
-                {/* Scrollable timeline control */}
                 <div className={styles.ecgTimelineControl}>
                   <input
                     type="range"
@@ -1510,64 +1098,6 @@ function App() {
                   <p>Viewing samples {startIndex} to {Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}</p>
                 </div>
               </>
-            )}
-
-            {!activeTab && (
-              <>
-                <div className={styles.ecgChartPlaceholder}>No recording selected. Select a .dat file to display waveform.</div>
-                <div className={styles.ecgTimelineControl}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0}
-                    value={0}
-                    onChange={() => { }}
-                    className={styles.timelineSlider}
-                    disabled={true}
-                  />
-                  <p>Viewing samples 0 to 0 of 0</p>
-                </div>
-              </>
-            )}
-
-            {/* Grad-CAM Tab Rendering */}
-            {activeTab && activeTab.type === 'gradcam' && activeTab.gradcamData && (
-              <div className={styles.gradcamViewer}>
-                <div className={styles.gradcamHeader}>
-                  <h3>Grad-CAM Explainability - Minute {activeTab.minute}</h3>
-                  <div className={styles.gradcamMeta}>
-                    <span className={`${styles.prediction} ${activeTab.gradcamData.predictedClass === 'Apnea' ? styles.apnea : styles.normal}`}>
-                      {activeTab.gradcamData.predictedClass}
-                    </span>
-                    <span className={styles.confidence}>
-                      {(activeTab.gradcamData.probability * 100).toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-
-                <div className={styles.gradcamImageWrapper}>
-                  <img
-                    src={activeTab.gradcamData.imageUrl}
-                    alt={`Grad-CAM for minute ${activeTab.minute}`}
-                    className={styles.gradcamFullImage}
-                    loading="lazy"
-                  />
-                </div>
-
-                <div className={styles.gradcamActions}>
-                  <button
-                    className={styles.downloadButton}
-                    onClick={() => {
-                      const link = document.createElement('a');
-                      link.href = activeTab.gradcamData!.imageUrl;
-                      link.download = `gradcam_minute_${activeTab.minute}.png`;
-                      link.click();
-                    }}
-                  >
-                    Download Image
-                  </button>
-                </div>
-              </div>
             )}
           </div>
 
@@ -1611,6 +1141,12 @@ function App() {
                   onClick={() => setPatientInfoTab('physio')}
                 >
                   Physiological Metrics
+                </button>
+                <button
+                  className={`${styles.tabButton} ${patientInfoTab === 'gradcam' ? styles.active : ''}`}
+                  onClick={() => setPatientInfoTab('gradcam')}
+                >
+                  GradCAM
                 </button>
               </div>
 
@@ -1873,6 +1409,47 @@ function App() {
                     ) : (
                       <div className={styles.noMetrics}>
                         <p>No physiological metrics available yet.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* GradCAM Tab */}
+                {patientInfoTab === 'gradcam' && (
+                  <div className={styles.gradcamPanel}>
+                    {activeGradcamData ? (
+                      <>
+                        <div className={styles.gradcamPanelHeader}>
+                          <h5>Grad-CAM — Minute {activeGradcamData.minute}</h5>
+                          <div className={styles.gradcamPanelMeta}>
+                            <span className={`${styles.statValue} ${activeGradcamData.predictedClass === 'Apnea' ? styles.apneaCount : styles.statusComplete}`}>
+                              {activeGradcamData.predictedClass}
+                            </span>
+                            <span className={styles.statValue}>
+                              {(activeGradcamData.probability * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                        <img
+                          src={activeGradcamData.imageUrl}
+                          alt={`Grad-CAM for minute ${activeGradcamData.minute}`}
+                          className={styles.gradcamPanelImage}
+                          loading="lazy"
+                        />
+                        <button
+                          className={styles.downloadButton}
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = activeGradcamData.imageUrl;
+                            link.download = `gradcam_minute_${activeGradcamData.minute}.png`;
+                            link.click();
+                          }}
+                        >
+                          Download Image
+                        </button>
+                      </>
+                    ) : (
+                      <div className={styles.noMetrics}>
+                        <p>No GradCAM selected. Click "View" on an apneic minute to display its explanation here.</p>
                       </div>
                     )}
                   </div>
