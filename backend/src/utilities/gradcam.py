@@ -59,6 +59,43 @@ def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
     return heatmap.numpy()
 
+
+def get_heatmap_for_minute(raw_signal, heatmap):
+    """
+    Resize heatmap to raw signal length and crop to the target (central) minute.
+    Returns a 1D numpy array of length (60 * config.FS) for use in frontend overlays.
+
+    Args:
+        raw_signal: Full raw ECG segment for the window (e.g. 5 minutes).
+        heatmap: 1D heatmap from make_gradcam_heatmap (model sequence length).
+
+    Returns:
+        heatmap_minute: 1D array of heatmap values for the central minute only.
+    """
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = np.expand_dims(heatmap, axis=0)
+    heatmap = cv2.resize(heatmap, (raw_signal.shape[0], 1))
+    heatmap = np.squeeze(heatmap)
+
+    fs = config.FS
+    start_sec = config.BEFORE * 60
+    end_sec = (config.BEFORE + 1) * 60
+    start_idx = int(start_sec * fs)
+    end_idx = int(end_sec * fs)
+    start_idx = max(0, start_idx)
+    end_idx = min(len(raw_signal), end_idx)
+
+    heatmap_minute = heatmap[start_idx:end_idx]
+    # Normalize to [0, 1] for frontend color mapping
+    if heatmap_minute.max() > heatmap_minute.min():
+        heatmap_minute = (heatmap_minute.astype(np.float64) - heatmap_minute.min()) / (
+            heatmap_minute.max() - heatmap_minute.min()
+        )
+    else:
+        heatmap_minute = np.zeros_like(heatmap_minute, dtype=np.float64)
+    return heatmap_minute
+
+
 def save_gradcam_visualization(raw_signal, heatmap, save_path, alpha=0.4):
     """
     Overlays the Grad-CAM heatmap on the RAW ECG signal (cropped to the target minute)

@@ -261,6 +261,25 @@ export class RecordAPI {
     }
   
     /**
+     * Get Grad-CAM heatmap data for a minute (for overlay on ECG chart).
+     * Returns heatmap array of length 6000 (100 Hz × 60 s), values in [0, 1].
+     */
+    static async getGradcamHeatmap(
+      filename: string,
+      minute: number
+    ): Promise<{
+      minute: number;
+      heatmap: number[];
+      probability: number;
+      predicted_class: string;
+    }> {
+      const response = await fetch(
+        `${API_BASE_URL}/api/gradcam/${filename}/heatmap?minute=${minute}`
+      );
+      return handleResponse(response);
+    }
+
+    /**
      * List all available Grad-CAM images for a record
      */
     static async listGradcams(filename: string): Promise<{
