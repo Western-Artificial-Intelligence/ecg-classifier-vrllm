@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styles from '../../styles/Hero.module.css';
 
 interface HeroProps {
@@ -9,6 +9,8 @@ interface HeroProps {
 }
 
 const Hero: React.FC<HeroProps> = ({ onDemoClick, heroImageSrc = '/images/gradcam overlay.png', heroImageSrc2 = '/images/normal apnea overlay.png' }) => {
+  const [showPaper, setShowPaper] = useState(false);
+
   return (
     <section className={styles.hero}>
       <div className={styles.heroContainer}>
@@ -28,12 +30,12 @@ const Hero: React.FC<HeroProps> = ({ onDemoClick, heroImageSrc = '/images/gradca
                 <path d="M4 10h12m-4-4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <a href="#research" className={styles.secondaryCta}>
+            <button className={styles.secondaryCta} onClick={() => setShowPaper(true)}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M9 12h6m-6 4h6M9 8h6m-9 4h.01M6 12h.01M6 16h.01M6 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span>Read the Paper</span>
-            </a>
+            </button>
           </div>
           <div className={styles.badges}>
             <div className={styles.badge}>
@@ -70,8 +72,24 @@ const Hero: React.FC<HeroProps> = ({ onDemoClick, heroImageSrc = '/images/gradca
             className={styles.heroImage}
           />
         </div>
-        
+
       </div>
+
+      {showPaper && (
+        <div className={styles.paperOverlay} onClick={() => setShowPaper(false)}>
+          <div className={styles.paperModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.paperModalHeader}>
+              <span>NeuralApnea Triage — Research Paper</span>
+              <button className={styles.paperClose} onClick={() => setShowPaper(false)}>✕</button>
+            </div>
+            <iframe
+              src="/NeuralApnea_Triage.pdf"
+              className={styles.paperFrame}
+              title="NeuralApnea Triage Paper"
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 };
