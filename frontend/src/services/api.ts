@@ -309,6 +309,17 @@ export class RecordAPI {
       });
       return handleResponse(response);
     }
+
+    /**
+     * List all saved agent reports for a record
+     */
+    static async listAgentReports(filename: string): Promise<{
+      filename: string;
+      reports: Array<{ minute: number; analysis: string; source: string; analyzed_at: number }>;
+    }> {
+      const response = await fetch(`${API_BASE_URL}/api/agent/reports/list/${filename}`);
+      return handleResponse(response);
+    }
   }
   
 /**

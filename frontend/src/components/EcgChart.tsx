@@ -112,6 +112,7 @@ const EcgChart: React.FC<EcgChartProps> = ({
       backgroundColor: string;
       tension: number;
       pointRadius: number;
+      segment?: any;
     }>;
   }>({
     labels: [],

@@ -119,7 +119,6 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [isPatientInfoCollapsed, setIsPatientInfoCollapsed] = useState<boolean>(false);
   const [activeFile, setActiveFile] = useState<string>('a01.dat');
-  const [chatInput, setChatInput] = useState<string>('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       role: 'system',
@@ -382,8 +381,9 @@ function App() {
             setPredictions(cachedPredictions || []);
             setEcgStats(cachedStats);
 
-            // Batch load available Grad-CAM metadata
+            // Batch load available Grad-CAM metadata and saved agent reports
             await loadGradcamMetadata(fileName);
+            await loadAgentReports(fileName);
           } catch (err) {
             setError(`Failed to load ECG data: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
@@ -398,6 +398,7 @@ function App() {
             setPredictions(cached.predictions);
             setEcgStats(cached.stats);
           }
+          await loadAgentReports(fileName);
           loadingFilesRef.current.delete(fileName);
         }
     } catch (error) {
@@ -407,34 +408,6 @@ function App() {
   };
 
 
-  const handleSendMessage = async () => {
-    if (chatInput.trim() === '') return;
-
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: chatInput,
-      timestamp: new Date()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput('');
-
-    // TODO: Send message to backend AI agent
-    // For now, simulate a response
-    try {
-      // Simulate API call delay
-      setTimeout(() => {
-        const assistantMessage: ChatMessage = {
-          role: 'assistant',
-          content: `I received your message: "${userMessage.content}". This is a placeholder response. Integration with the AI agent is pending.`,
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, assistantMessage]);
-      }, 1000);
-    } catch (e: any) {
-      console.error('Error sending message:', e);
-    }
-  };
 
   const appendAssistantMessage = (content: string) => {
     const assistantMessage: ChatMessage = {
@@ -576,12 +549,6 @@ function App() {
     return nodes;
   };
 
-  const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleSendMessage();
-    }
-  };
 
   // Load all available Grad-CAM images for a recording
   const loadGradcamMetadata = async (filename: string) => {
@@ -611,6 +578,31 @@ function App() {
     }
   };
 
+
+  const loadAgentReports = async (filename: string) => {
+    try {
+      const data = await AnalysisAPI.listAgentReports(filename);
+      if (data.reports.length > 0) {
+        const restored: ChatMessage[] = data.reports
+          .sort((a, b) => a.analyzed_at - b.analyzed_at)
+          .map(r => ({
+            role: 'assistant' as const,
+            content: r.analysis,
+            timestamp: new Date(r.analyzed_at * 1000),
+          }));
+        setChatMessages([
+          { role: 'system', content: 'Welcome to NeuralApnea Triage Assistant. How can I help you analyze this ECG?', timestamp: new Date() },
+          ...restored,
+        ]);
+      } else {
+        setChatMessages([
+          { role: 'system', content: 'Welcome to NeuralApnea Triage Assistant. How can I help you analyze this ECG?', timestamp: new Date() },
+        ]);
+      }
+    } catch (e) {
+      console.error('Failed to load agent reports:', e);
+    }
+  };
 
   // Fetch predictions for the active file
   const fetchPredictions = async (filename: string) => {
@@ -817,6 +809,16 @@ function App() {
         return newSet;
       });
     }
+  };
+
+  // Scroll ECG chart viewport to the start of a specific minute
+  const scrollToMinute = (minute: number) => {
+    const targetIndex = minute * 6000;
+    const targetWindowSize = currentZoom === 'FULL' ? 6000 : viewWindowSize;
+    if (currentZoom === 'FULL') {
+      setCurrentZoom('MINUTE_1');
+    }
+    setStartIndex(Math.min(targetIndex, Math.max(0, ecgData.length - targetWindowSize)));
   };
 
   // Handle View button click to show Grad-CAM in right panel
@@ -1161,7 +1163,21 @@ function App() {
                       →
                     </button>
                   </div>
-                  <p>Viewing samples {startIndex} to {Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}</p>
+                  <div className={styles.timelineInfoRow}>
+                    <span className={styles.minuteIndicator}>
+                      {currentZoom === 'FULL'
+                        ? `Full Record (Min 0 – ${Math.floor((ecgData.length - 1) / 6000)})`
+                        : (() => {
+                            const minStart = Math.floor(startIndex / 6000);
+                            const minEnd = Math.floor((Math.min(startIndex + viewWindowSize, ecgData.length) - 1) / 6000);
+                            return minStart === minEnd ? `Min ${minStart}` : `Min ${minStart} – ${minEnd}`;
+                          })()
+                      }
+                    </span>
+                    <span className={styles.sampleInfo}>
+                      samples {startIndex}–{Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}
+                    </span>
+                  </div>
                 </div>
               </>
             )}
@@ -1333,14 +1349,14 @@ function App() {
                                 ) : gradcamImages.has(getCacheKey(activeFile, pred.minute)) ? (
                                   <button
                                     className={styles.viewButton}
-                                    onClick={() => handleViewGradCAM(pred.minute)}
+                                    onClick={() => { scrollToMinute(pred.minute); handleViewGradCAM(pred.minute); }}
                                   >
                                     👁️ View
                                   </button>
                                 ) : (
                                   <button
                                     className={styles.explainButton}
-                                    onClick={() => handleSegmentClick(pred.minute)}
+                                    onClick={() => { scrollToMinute(pred.minute); handleSegmentClick(pred.minute); }}
                                   >
                                     🔍 Explain
                                   </button>
@@ -1561,27 +1577,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Chat Input Box */}
-              <div className={styles.chatInputArea}>
-                <input
-                  type="text"
-                  className={styles.chatInput}
-                  placeholder="Type your question or command here..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                />
-                <button
-                  className={styles.sendArrowButton}
-                  title="Send"
-                  onClick={handleSendMessage}
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              </div>
             </>
           )}
         </div>

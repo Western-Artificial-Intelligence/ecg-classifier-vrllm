@@ -24,6 +24,10 @@ from backend.src.database import get_db_manager
 GRADCAM_IMAGES_DIR = os.path.join(config.PROCESSED_DATA_DIR, "gradcam_images")
 os.makedirs(GRADCAM_IMAGES_DIR, exist_ok=True)
 
+# Define agent reports directory
+AGENT_REPORTS_DIR = os.path.join(config.PROCESSED_DATA_DIR, "agent_reports")
+os.makedirs(AGENT_REPORTS_DIR, exist_ok=True)
+
 app = FastAPI()
 
 # Global model cache - loaded at startup
@@ -898,14 +902,33 @@ async def analyze_single_minute(filename: str, minute: int, stats: Optional[Dict
     record_name = filename.replace(".dat", "")
     try:
         analysis = await agent.analyze_single_minute_for_record(record_name, minute, stats=stats)
-        return {"filename": filename, "minute": minute, "analysis": analysis, "source": "gemini"}
+        source = "gemini"
     except Exception as e:
-        return {
-            "filename": filename,
-            "minute": minute,
-            "analysis": f"Analysis unavailable for minute {minute}: {str(e)}",
-            "source": "fallback",
-        }
+        analysis = f"Analysis unavailable for minute {minute}: {str(e)}"
+        source = "fallback"
+
+    # Save report to disk (like GradCAM images)
+    report_dir = os.path.join(AGENT_REPORTS_DIR, record_name)
+    os.makedirs(report_dir, exist_ok=True)
+    report_path = os.path.join(report_dir, f"{minute}.json")
+    with open(report_path, "w") as f:
+        json.dump({"minute": minute, "analysis": analysis, "source": source, "analyzed_at": time.time()}, f)
+
+    return {"filename": filename, "minute": minute, "analysis": analysis, "source": source}
+
+
+@app.get("/api/agent/reports/list/{filename}")
+async def list_agent_reports(filename: str):
+    """List all saved agent reports for a record (mirrors /api/gradcam/list/{filename})."""
+    record_name = filename.replace(".dat", "")
+    report_dir = os.path.join(AGENT_REPORTS_DIR, record_name)
+    reports = []
+    if os.path.isdir(report_dir):
+        for fname in sorted(os.listdir(report_dir)):
+            if fname.endswith(".json"):
+                with open(os.path.join(report_dir, fname)) as f:
+                    reports.append(json.load(f))
+    return {"filename": filename, "reports": reports}
 
 
 @app.get("/api/status")
