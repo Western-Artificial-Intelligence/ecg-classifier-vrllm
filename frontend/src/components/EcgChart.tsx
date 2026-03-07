@@ -28,6 +28,12 @@ interface Prediction {
   probability: number;
 }
 
+/** Grad-CAM heatmap for one minute: 6000 samples (100 Hz × 60 s), values in [0, 1]. */
+export interface GradcamHeatmap {
+  minute: number;
+  values: number[];
+}
+
 interface EcgChartProps {
   dataPoints: number[];
   viewWindowSize: number; // Number of data points to show at once
@@ -36,6 +42,34 @@ interface EcgChartProps {
   onSegmentClick?: (minute: number) => void;
   isFullView?: boolean; // Whether displaying full record
   showAnnotations?: boolean; // Whether to show analysis overlays
+  /** When set, the ECG line is colored by this heatmap over the given minute. */
+  gradcamHeatmap?: GradcamHeatmap | null;
+}
+
+const SAMPLES_PER_MINUTE = 6000;
+
+/** Map heatmap value in [0, 1] to jet-like color (blue → green → red). */
+function heatmapToRgb(value: number): string {
+  const v = Math.max(0, Math.min(1, value));
+  let r: number, g: number, b: number;
+  if (v <= 0.25) {
+    r = 0;
+    g = Math.round(4 * v * 255);
+    b = 255;
+  } else if (v <= 0.5) {
+    r = 0;
+    g = 255;
+    b = Math.round((1 - 4 * (v - 0.25)) * 255);
+  } else if (v <= 0.75) {
+    r = Math.round(4 * (v - 0.5) * 255);
+    g = 255;
+    b = 0;
+  } else {
+    r = 255;
+    g = Math.round((1 - 4 * (v - 0.75)) * 255);
+    b = 0;
+  }
+  return `rgb(${r},${g},${b})`;
 }
 
 const EcgChart: React.FC<EcgChartProps> = ({ 
@@ -45,7 +79,8 @@ const EcgChart: React.FC<EcgChartProps> = ({
   predictions = [],
   onSegmentClick,
   isFullView = false,
-  showAnnotations = true
+  showAnnotations = true,
+  gradcamHeatmap = null,
 }) => {
   // Downsample data for full view
   const downsampleData = (data: number[], targetPoints: number = 3000): number[] => {
@@ -116,6 +151,28 @@ const EcgChart: React.FC<EcgChartProps> = ({
       labels = Array.from({ length: visibleData.length }, (_, i) => ((startIndex + i) / 100).toFixed(2));
     }
 
+    const segmentBorderColor =
+      gradcamHeatmap?.values && gradcamHeatmap.values.length > 0
+        ? (ctx: { p0DataIndex: number; chart: { data: { datasets: { data: number[] }[] } } }) => {
+            const dataIndex = ctx.p0DataIndex;
+            const visibleLen = visibleData.length;
+            const globalIndex =
+              visibleLen <= 1
+                ? startIndex
+                : startIndex + Math.round((dataIndex / (visibleLen - 1)) * (viewWindowSize - 1));
+            const minuteStart = gradcamHeatmap.minute * SAMPLES_PER_MINUTE;
+            const minuteEnd = minuteStart + SAMPLES_PER_MINUTE;
+            if (globalIndex >= minuteStart && globalIndex < minuteEnd) {
+              const heatmapIdx = Math.min(
+                gradcamHeatmap.values.length - 1,
+                Math.max(0, globalIndex - minuteStart)
+              );
+              return heatmapToRgb(gradcamHeatmap.values[heatmapIdx]);
+            }
+            return 'rgb(75, 192, 192)';
+          }
+        : undefined;
+
     setChartData({
       labels: labels,
       datasets: [
@@ -126,15 +183,17 @@ const EcgChart: React.FC<EcgChartProps> = ({
           backgroundColor: 'rgba(75, 192, 192, 0.5)',
           tension: 0.1,
           pointRadius: 0,
+          segment: segmentBorderColor
+            ? { borderColor: segmentBorderColor }
+            : undefined,
         },
       ],
     });
-  }, [dataPoints, viewWindowSize, startIndex, isFullView]); // Dependencies for useEffect
+  }, [dataPoints, viewWindowSize, startIndex, isFullView, gradcamHeatmap]); // Dependencies for useEffect
 
   // Create annotations for apneic regions
   const createAnnotations = () => {
     const annotations: any = {};
-    const SAMPLES_PER_MINUTE = 6000; // 100Hz * 60 seconds
     const APNEA_THRESHOLD = 0.5;
 
     predictions

@@ -314,8 +314,45 @@
   /* Don't let this shrink */
 }
 
+.timelineSliderRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.timelineArrowButton {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #374151;
+  background: linear-gradient(180deg, #f3f4f6 0%, #e5e7eb 100%);
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+}
+.timelineArrowButton:hover:not(:disabled) {
+  background: linear-gradient(180deg, #e5e7eb 0%, #d1d5db 100%);
+}
+.timelineArrowButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.timelineArrowButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .timelineSlider {
-  width: 90%;
+  flex: 1;
+  min-width: 0;
   /* Make slider wide */
   -webkit-appearance: none;
   /* Override default look */

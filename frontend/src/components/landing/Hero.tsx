@@ -1,11 +1,14 @@
-﻿import React from 'react';
+import React from 'react';
 import styles from '../../styles/Hero.module.css';
 
 interface HeroProps {
   onDemoClick: () => void;
+  /** URL path to the hero image. Use a path from public/ (e.g. "/images/hero-visual.png") or pass an imported image URL. */
+  heroImageSrc?: string;
+  heroImageSrc2?: string;
 }
 
-const Hero: React.FC<HeroProps> = ({ onDemoClick }) => {
+const Hero: React.FC<HeroProps> = ({ onDemoClick, heroImageSrc = '/images/gradcam overlay.png', heroImageSrc2 = '/images/normal apnea overlay.png' }) => {
   return (
     <section className={styles.hero}>
       <div className={styles.heroContainer}>
@@ -56,97 +59,18 @@ const Hero: React.FC<HeroProps> = ({ onDemoClick }) => {
         </div>
 
         <div className={styles.heroVisual}>
-          <div className={styles.productCard}>
-            <div className={styles.cardHeader}>
-              <div className={styles.cardTabs}>
-                <div className={styles.cardTab + ' ' + styles.active}>ECG Signal</div>
-                <div className={styles.cardTab}>Risk Timeline</div>
-                <div className={styles.cardTab}>Explanation</div>
-              </div>
-              <div className={styles.cardStatus}>
-                <div className={styles.statusDot}></div>
-                <span>Analyzing</span>
-              </div>
-            </div>
-
-            <div className={styles.cardBody}>
-              <svg className={styles.ecgMock} viewBox="0 0 600 200" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="ecgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="rgba(99, 102, 241, 0.3)" />
-                    <stop offset="100%" stopColor="rgba(99, 102, 241, 0.0)" />
-                  </linearGradient>
-                  <linearGradient id="highlightGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="rgba(239, 68, 68, 0.2)" />
-                    <stop offset="100%" stopColor="rgba(239, 68, 68, 0.0)" />
-                  </linearGradient>
-                </defs>
-
-                {/* Grid */}
-                <g opacity="0.1">
-                  {[...Array(20)].map((_, i) => (
-                    <line key={`v${i}`} x1={i * 30} y1="0" x2={i * 30} y2="200" stroke="#6366f1" strokeWidth="0.5" />
-                  ))}
-                  {[...Array(8)].map((_, i) => (
-                    <line key={`h${i}`} x1="0" y1={i * 25} x2="600" y2={i * 25} stroke="#6366f1" strokeWidth="0.5" />
-                  ))}
-                </g>
-
-                {/* Highlight zones (apnea regions) */}
-                <rect x="180" y="0" width="80" height="200" fill="url(#highlightGradient)" />
-                <rect x="420" y="0" width="100" height="200" fill="url(#highlightGradient)" />
-
-                {/* ECG waveform */}
-                <path
-                  d="M0,100 L30,100 L40,98 L45,95 L48,85 L52,40 L56,85 L60,98 L70,100 
-                     L100,100 L110,98 L115,95 L118,85 L122,40 L126,85 L130,98 L140,100 
-                     L170,102 L180,105 L185,108 L188,115 L192,140 L196,115 L200,105 L210,102 
-                     L240,102 L250,105 L255,108 L258,115 L262,140 L266,115 L270,105 L280,102 
-                     L310,100 L320,98 L325,95 L328,85 L332,40 L336,85 L340,98 L350,100 
-                     L380,100 L390,98 L395,95 L398,85 L402,40 L406,85 L410,98 L420,100 
-                     L450,103 L460,107 L465,112 L468,120 L472,145 L476,120 L480,107 L490,103 
-                     L520,102 L530,106 L535,110 L538,118 L542,142 L546,118 L550,106 L560,102 
-                     L590,100 L600,100"
-                  stroke="#6366f1"
-                  strokeWidth="2"
-                  fill="url(#ecgGradient)"
-                />
-              </svg>
-
-              <div className={styles.riskTimeline}>
-                <div className={styles.timelineBar}>
-                  <div className={styles.timelineSegment + ' ' + styles.low} style={{ width: '30%' }}></div>
-                  <div className={styles.timelineSegment + ' ' + styles.high} style={{ width: '13%' }}></div>
-                  <div className={styles.timelineSegment + ' ' + styles.medium} style={{ width: '24%' }}></div>
-                  <div className={styles.timelineSegment + ' ' + styles.high} style={{ width: '17%' }}></div>
-                  <div className={styles.timelineSegment + ' ' + styles.low} style={{ width: '16%' }}></div>
-                </div>
-                <div className={styles.timelineLabels}>
-                  <span>00:00</span>
-                  <span>02:00</span>
-                  <span>04:00</span>
-                  <span>06:00</span>
-                  <span>08:00</span>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.cardFooter}>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Overall Risk</span>
-                <span className={styles.metricValue + ' ' + styles.high}>High</span>
-              </div>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Confidence</span>
-                <span className={styles.metricValue}>87%</span>
-              </div>
-              <div className={styles.metric}>
-                <span className={styles.metricLabel}>Apnea Windows</span>
-                <span className={styles.metricValue}>23</span>
-              </div>
-            </div>
-          </div>
+          <img
+            src={heroImageSrc}
+            alt="ECG sleep apnea screening dashboard"
+            className={styles.heroImage}
+          />
+          <img
+            src={heroImageSrc2}
+            alt="ECG sleep apnea screening dashboard"
+            className={styles.heroImage}
+          />
         </div>
+        
       </div>
     </section>
   );

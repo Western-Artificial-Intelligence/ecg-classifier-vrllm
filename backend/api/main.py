@@ -16,7 +16,7 @@ import tensorflow as tf
 from backend.src import config
 from backend.src import agent
 from backend.src.utilities.preprocess import preprocess_with_cache
-from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization
+from backend.src.utilities.gradcam import make_gradcam_heatmap, save_gradcam_visualization, get_heatmap_for_minute
 from backend.src.database import get_db_manager
 
 
@@ -799,6 +799,55 @@ async def generate_gradcam_batch(filename: str, count: int = Query(default=3)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch Grad-CAM generation error: {str(e)}")
+
+
+@app.get("/api/gradcam/{filename}/heatmap")
+async def get_gradcam_heatmap(filename: str, minute: int = Query(..., description="Minute index for which to return heatmap")):
+    """
+    Returns Grad-CAM heatmap as a JSON array aligned to the ECG for the given minute.
+    Used by the frontend to overlay the heatmap on the ECG chart (EcgChart.tsx).
+    Heatmap length is 6000 (100 Hz * 60 s); values are in [0, 1].
+    """
+    record_name = filename.replace(".dat", "")
+    try:
+        model = get_model()
+        full_record_path = os.path.join(config.RAW_DATA_DIR, record_name)
+        out = preprocess_with_cache(full_record_path)
+        tensors = out["tensors"]
+        minutes = out["minutes"]
+        raw_segments = out.get("raw_segments", [])
+        if tensors.shape[0] == 0:
+            raise HTTPException(status_code=404, detail="No valid signal segments found")
+        try:
+            target_idx = minutes.index(minute)
+        except ValueError:
+            raise HTTPException(status_code=404, detail=f"Minute {minute} not found")
+        input_tensor = np.expand_dims(tensors[target_idx], axis=0)
+        preds = model.predict(input_tensor)[0]
+        predicted_class = int(np.argmax(preds))
+        confidence = float(preds[predicted_class])
+        class_label = "Apnea" if predicted_class == 1 else "Non-Apnea"
+        try:
+            heatmap = make_gradcam_heatmap(input_tensor, model, "last_conv_layer")
+        except Exception:
+            conv_layers = [l for l in model.layers if isinstance(l, tf.keras.layers.Conv1D)]
+            if not conv_layers:
+                raise HTTPException(status_code=500, detail="No Conv1D layers in model")
+            heatmap = make_gradcam_heatmap(input_tensor, model, conv_layers[-1].name)
+        raw_signal = raw_segments[target_idx] if target_idx < len(raw_segments) else None
+        if raw_signal is None:
+            raise HTTPException(status_code=500, detail="Raw signal segment not available")
+        heatmap_minute = get_heatmap_for_minute(raw_signal, heatmap)
+        return {
+            "minute": int(minute),
+            "heatmap": heatmap_minute.tolist(),
+            "probability": float(confidence),
+            "predicted_class": class_label,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/gradcam/list/{filename}")

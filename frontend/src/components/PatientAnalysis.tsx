@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from '../styles/App.module.css';
-import EcgChart from './EcgChart';
+import EcgChart, { type GradcamHeatmap } from './EcgChart';
 import MinimapView from './MinimapView';
 import SummaryChartView from './SummaryChartView';
 import { PatientAPI, RecordAPI, AnalysisAPI } from '../services/api';
@@ -162,6 +162,7 @@ function App() {
   const [patientInfoTab, setPatientInfoTab] = useState<'details' | 'predictions' | 'minutes' | 'physio' | 'gradcam'>('details');
   const [gradcamQueue, setGradcamQueue] = useState<Set<number>>(new Set());
   const [gradcamNotifications, setGradcamNotifications] = useState<Array<{ minute: number, id: string }>>([]);
+  const [gradcamHeatmapData, setGradcamHeatmapData] = useState<GradcamHeatmap | null>(null);
   const [showAnalysisOverlay] = useState<boolean>(true);
   const [ecgStats, setEcgStats] = useState<ECGStats | null>(null);
   const [generatingAll, setGeneratingAll] = useState<boolean>(false);
@@ -279,9 +280,36 @@ function App() {
     loadPatientRecords();
   }, [currentPatient]);
 
+  // Fetch Grad-CAM heatmap data when user selects a GradCAM minute (for overlay on ECG chart)
+  useEffect(() => {
+    if (!activeGradcamData || activeGradcamData.recordingFile !== activeFile) {
+      setGradcamHeatmapData(null);
+      return;
+    }
+    let cancelled = false;
+    AnalysisAPI.getGradcamHeatmap(activeFile, activeGradcamData.minute)
+      .then((data) => {
+        if (!cancelled) {
+          setGradcamHeatmapData({ minute: data.minute, values: data.heatmap });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setGradcamHeatmapData(null);
+      });
+    return () => { cancelled = true; };
+  }, [activeGradcamData, activeFile]);
 
   const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setStartIndex(Number(event.target.value));
+  };
+
+  const stepAmount = Math.max(1, Math.floor(viewWindowSize / 2));
+  const maxStart = Math.max(0, ecgData.length - viewWindowSize);
+  const handleTimelineStepLeft = () => {
+    setStartIndex((prev) => Math.max(0, prev - stepAmount));
+  };
+  const handleTimelineStepRight = () => {
+    setStartIndex((prev) => Math.min(maxStart, prev + stepAmount));
   };
 
   const handleFileSelect = async (fileName: string, dbRecordOverride?: Record) => {
@@ -1076,6 +1104,7 @@ function App() {
                       onSegmentClick={handleSegmentClick}
                       isFullView={currentZoom === 'FULL'}
                       showAnnotations={showAnalysisOverlay}
+                      gradcamHeatmap={gradcamHeatmapData}
                     />
                   )}
                   {viewMode === 'minimap' && (
@@ -1101,15 +1130,37 @@ function App() {
                 </div>
 
                 <div className={styles.ecgTimelineControl}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.max(0, ecgData.length - viewWindowSize)}
-                    value={startIndex}
-                    onChange={handleSliderChange}
-                    className={styles.timelineSlider}
-                    disabled={ecgData.length <= viewWindowSize}
-                  />
+                  <div className={styles.timelineSliderRow}>
+                    <button
+                      type="button"
+                      className={styles.timelineArrowButton}
+                      onClick={handleTimelineStepLeft}
+                      disabled={!canUseEcgControls || startIndex <= 0}
+                      title={`Move left by half view (${stepAmount} samples)`}
+                      aria-label="Move chart left"
+                    >
+                      ←
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={maxStart}
+                      value={startIndex}
+                      onChange={handleSliderChange}
+                      className={styles.timelineSlider}
+                      disabled={ecgData.length <= viewWindowSize}
+                    />
+                    <button
+                      type="button"
+                      className={styles.timelineArrowButton}
+                      onClick={handleTimelineStepRight}
+                      disabled={!canUseEcgControls || startIndex >= maxStart}
+                      title={`Move right by half view (${stepAmount} samples)`}
+                      aria-label="Move chart right"
+                    >
+                      →
+                    </button>
+                  </div>
                   <p>Viewing samples {startIndex} to {Math.min(startIndex + viewWindowSize, ecgData.length)} of {ecgData.length}</p>
                 </div>
               </>
