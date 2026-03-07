@@ -1,4 +1,4 @@
-﻿/* Hero Section */
+/* Hero Section */
 .hero {
   position: relative;
   z-index: 1;
@@ -113,6 +113,19 @@
 /* Hero Visual */
 .heroVisual {
   position: relative;
+}
+
+.heroImage {
+  width: 100%;
+  height: auto;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  object-fit: contain;
+  display: block;
+}
+
+.heroImage:hover {
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
 
 .productCard {
