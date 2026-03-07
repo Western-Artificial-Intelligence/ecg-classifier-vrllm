@@ -839,6 +839,26 @@ async def list_gradcam_images(filename: str):
     return {"images": images}
 
 
+@app.post("/api/agent/analyze/{filename}/minute/{minute}")
+async def analyze_single_minute(filename: str, minute: int, stats: Optional[Dict[str, Any]] = Body(default=None)):
+    """
+    Run Gemini analysis for a single specific minute of a record.
+    The Grad-CAM image must already exist on disk for that minute.
+    Accepts optional physiological stats in the request body.
+    """
+    record_name = filename.replace(".dat", "")
+    try:
+        analysis = await agent.analyze_single_minute_for_record(record_name, minute, stats=stats)
+        return {"filename": filename, "minute": minute, "analysis": analysis, "source": "gemini"}
+    except Exception as e:
+        return {
+            "filename": filename,
+            "minute": minute,
+            "analysis": f"Analysis unavailable for minute {minute}: {str(e)}",
+            "source": "fallback",
+        }
+
+
 @app.get("/api/status")
 async def get_status():
     """Simple endpoint to check if the API is running."""

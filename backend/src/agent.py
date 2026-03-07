@@ -37,35 +37,57 @@ def configure_genai():
         raise ValueError("GEMINI_API_KEY not found in configuration or environment variables.")
     genai.configure(api_key=config.GEMINI_API_KEY)
 
-async def analyze_image(image_path: str, record_name: str, minute: int, prediction: str, confidence: float) -> str:
+async def analyze_image(image_path: str, record_name: str, minute: int, prediction: str, confidence: float, stats: dict | None = None) -> str:
     """
     Sends a Grad-CAM image to Gemini 1.5 Pro for analysis.
     Wait for the rate limiter before making the API call.
     """
     await limiter.wait()
-    
+
     model = genai.GenerativeModel(config.GEMINI_MODEL)
 
     img = Image.open(image_path)
 
+    # Build physiological metrics section if stats are provided
+    stats_section = ""
+    if stats:
+        lines = ["**Physiological Metrics** (whole-recording averages):"]
+        rpeak = stats.get("rpeak", {})
+        hrv_time = stats.get("hrv_time", {})
+        hrv_freq = stats.get("hrv_freq", {})
+        edr = stats.get("edr", {})
+
+        if rpeak:
+            lines.append(f"- Mean HR: {rpeak.get('mean_hr_bpm', 'N/A')} bpm  |  HR Std: {rpeak.get('hr_std_bpm', 'N/A')} bpm  |  R-peaks: {rpeak.get('num_rpeaks', 'N/A')}")
+        if hrv_time:
+            lines.append(f"- Mean RRI: {hrv_time.get('mean_rri_ms', 'N/A')} ms  |  SDNN: {hrv_time.get('sdnn_ms', 'N/A')} ms  |  RMSSD: {hrv_time.get('rmssd_ms', 'N/A')} ms  |  pNN50: {hrv_time.get('pnn50_percent', 'N/A')}%")
+        if hrv_freq:
+            lines.append(f"- LF: {hrv_freq.get('lf_power_ms2', 'N/A')} ms²  |  HF: {hrv_freq.get('hf_power_ms2', 'N/A')} ms²  |  LF/HF: {hrv_freq.get('lf_hf_ratio', 'N/A')}")
+        if edr:
+            lines.append(f"- Resp Rate (EDR): {edr.get('resp_rate_bpm', 'N/A')} breaths/min  |  EDR Amplitude Range: {edr.get('edr_amplitude_range', 'N/A')}  |  EDR Variability: {edr.get('edr_variability', 'N/A')}")
+
+        stats_section = "\n".join(lines)
+
     prompt = textwrap.dedent(f"""
         You are an expert cardiologist and AI interpretability specialist.
-        
+
         **Context**:
         - Patient Record: {record_name}
         - ECG Segment: Minute {minute}
         - Model Prediction: **{prediction}**
         - Confidence: {confidence:.2f}
-        
+
+        {stats_section}
+
         **Input Image**:
         The attached image shows a 1-minute ECG signal (split into 2-second segments).
         The overlaid heatmap (red/warm colors) indicates the "Grad-CAM" attention - the regions the model found most important for its prediction.
-        
+
         **Task**:
         1.  **Morphological Analysis**: Look at the regions with high attention (red). Do you see specific ECG features? (e.g., R-peak amplitude changes, missed beats, irregular intervals, signal quality issues).
-        2.  **Physiological Correlation**: correct to physiology, does this attention make sense for a prediction of "{prediction}"? (e.g., Amplitude reduction often indicates Apnea).
-        3.  **Explain**: Provide a concise explanation of *why* the model likely made this prediction based on the visual evidence.
-        
+        2.  **Physiological Correlation**: Does the attention make sense for a prediction of "{prediction}"? Reference the provided metrics where relevant (e.g., elevated LF/HF ratio, low RMSSD, and suppressed EDR amplitude are consistent with Apnea).
+        3.  **Explain**: Provide a concise explanation of *why* the model likely made this prediction based on the visual evidence and the physiological context.
+
         Output in Markdown format.
     """)
 
@@ -155,6 +177,36 @@ async def generate_chat_analysis_for_record(record_name: str, visualize_count: i
             "report_path": report_path,
         },
     }
+
+async def analyze_single_minute_for_record(record_name: str, minute: int, stats: dict | None = None) -> str:
+    """
+    Analyze a single Grad-CAM image for a specific minute of a record.
+    Returns a chat-friendly markdown analysis string.
+    """
+    configure_genai()
+
+    import json as _json
+    gradcam_dir = os.path.join(config.PROCESSED_DATA_DIR, "gradcam_images", record_name)
+    image_path = os.path.join(gradcam_dir, f"{minute}.png")
+    metadata_path = os.path.join(gradcam_dir, f"{minute}.json")
+
+    if not os.path.exists(image_path):
+        raise ValueError(f"No Grad-CAM image found for {record_name} minute {minute}.")
+
+    # Read prediction metadata from companion JSON
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r") as f:
+            meta = _json.load(f)
+        prediction = meta.get("predicted_class", "Unknown")
+        confidence = float(meta.get("probability", 0.0))
+    else:
+        prediction = "Unknown"
+        confidence = 0.0
+
+    analysis = await analyze_image(image_path, record_name, minute, prediction, confidence, stats=stats)
+
+    return f"### Minute {minute} — {prediction} (confidence {confidence:.2f})\n\n{analysis}"
+
 
 async def generate_report_for_record(record_name: str):
     """

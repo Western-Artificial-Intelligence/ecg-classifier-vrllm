@@ -715,34 +715,34 @@ function App() {
     }
   };
 
-  // Handle segment click to generate Grad-CAM silently (non-blocking)
+  // Handle segment click: generate Grad-CAM then run Gemini analysis for that minute
   const handleSegmentClick = async (minute: number) => {
     const cacheKey = getCacheKey(activeFile, minute);
 
     // Check if already cached
     if (gradcamImages.has(cacheKey)) {
-      // Already cached, nothing to do
       return;
     }
 
-    // Add to processing queue (non-blocking)
+    // Add to processing queue
     setGradcamQueue(prev => new Set(prev).add(minute));
 
-    // Process in background
     try {
       const recordName = activeFile.replace('.dat', '');
-      const response = await fetch(
+
+      // Step 1: Generate Grad-CAM
+      const gradcamResponse = await fetch(
         `http://localhost:8000/api/gradcam/${recordName}?minute=${minute}`,
         { method: 'POST' }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!gradcamResponse.ok) {
+        throw new Error(`HTTP error! status: ${gradcamResponse.status}`);
       }
 
-      const result = await response.json();
+      const result = await gradcamResponse.json();
 
-      // IMMEDIATELY cache the image (backend already saved it to disk)
+      // Cache the image
       setGradcamImages(prev => {
         const newCache = new Map(prev);
         newCache.set(cacheKey, {
@@ -758,16 +758,31 @@ function App() {
       // Show notification
       const notifId = `gradcam_${minute}_${Date.now()}`;
       setGradcamNotifications(prev => [...prev, { minute, id: notifId }]);
-
-      // Auto-remove notification after 5 seconds
       setTimeout(() => {
         setGradcamNotifications(prev => prev.filter(n => n.id !== notifId));
       }, 5000);
 
+      // Step 2: Run Gemini analysis for this specific minute (include physiological stats if available)
+      try {
+        const analysisResponse = await fetch(
+          `http://localhost:8000/api/agent/analyze/${recordName}/minute/${minute}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: ecgStats ? JSON.stringify(ecgStats) : null,
+          }
+        );
+        const analysisResult = await analysisResponse.json();
+        if (typeof analysisResult?.analysis === 'string' && analysisResult.analysis.trim().length > 0) {
+          appendAssistantMessage(analysisResult.analysis);
+        }
+      } catch (analysisErr) {
+        console.error(`Failed to get Gemini analysis for minute ${minute}:`, analysisErr);
+      }
+
     } catch (e: any) {
       console.error(`Failed to generate Grad-CAM for minute ${minute}:`, e);
     } finally {
-      // Remove from queue
       setGradcamQueue(prev => {
         const newSet = new Set(prev);
         newSet.delete(minute);

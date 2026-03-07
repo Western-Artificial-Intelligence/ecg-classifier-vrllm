@@ -460,7 +460,7 @@
 }
 
 .messageContent {
-  color: #333;
+  color: var(--text-1);
   line-height: 1.5;
   white-space: pre-wrap;
 }
@@ -468,21 +468,21 @@
 .markdownH1 {
   margin: 0 0 6px 0;
   font-size: 1rem;
-  color: #1f2937;
+  color: var(--text-1);
   font-weight: 700;
 }
 
 .markdownH2 {
   margin: 0 0 6px 0;
   font-size: 0.95rem;
-  color: #374151;
+  color: var(--text-1);
   font-weight: 700;
 }
 
 .markdownH3 {
   margin: 0 0 5px 0;
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--text-2);
   font-weight: 700;
 }
 
